@@ -1,0 +1,17 @@
+# Elección de Empresa: Brasaland
+ 
+Elijo **Brasaland** porque es la empresa con procesos operativos más medibles y basados en reglas numéricas claras (umbrales de stock, porcentajes de recargo, límites de aprobación), lo cual encaja bien con mi experiencia construyendo sistemas multi-agente para generación automatizada de reportes técnicos y RAG en mi trabajo actual. Además, al ser una cadena de restaurantes que opera en dos países (Colombia y Florida), sus problemas de cadena de suministro y control de desperdicio tienen una complejidad real de coordinación entre locales, no son casos triviales. Me parece un dominio con margen claro para automatización: hay reglas explícitas (umbral de 3 días de stock, recargo del 8% en pedidos de emergencia, alerta al 3% de merma no explicada) que hoy dependen de que una persona las note a tiempo, y eso es exactamente el tipo de problema que un agente de IA puede monitorear de forma continua y proactiva.
+ 
+## Departamentos de interés
+ 
+1. **Compras / Procedimiento de Pedido a Proveedores**: el proceso depende de que cada gerente de local calcule manualmente si el stock proyectado caerá bajo el umbral mínimo antes de la próxima entrega, y decida si necesita un pedido de emergencia (con su recargo del 8% y posible aprobación de Lucía Fernández). Es un proceso repetitivo, basado en datos, y propenso a errores humanos por sobrecarga operativa.
+2. **Control de Desperdicio**: el registro diario de desperdicio por categoría (vencimiento, error de cocina, merma no explicada) y la detección de patrones que requieren escalamiento (merma >3% semanal, tres semanas consecutivas del mismo local) actualmente dependen de que un supervisor note la tendencia manualmente turno a turno.
+## Mi Idea de Agente de IA
+ 
+**Agente de Inventario Predictivo Brasaland**: un agente que monitorea el stock de proteínas por local en tiempo real, cruza el consumo histórico con el calendario de pedidos por categoría (proteínas semanal, vegetales lunes/jueves, etc.) y con los registros diarios de desperdicio, para anticiparse a dos problemas antes de que ocurran:
+ 
+- **Quiebre de stock**: predice si el inventario caerá por debajo del umbral de 3 días antes de la próxima entrega programada. Si es así, genera automáticamente la propuesta de pedido de emergencia, calcula el recargo del 8%, y si el monto supera 500 USD la deja marcada como pendiente de aprobación de Lucía Fernández en vez de esperar a que el gerente de local lo detecte tarde.
+- **Merma anómala**: cruza los registros de desperdicio por turno y detecta cuándo la merma no explicada de un ingrediente supera el 3% del inventario semanal, generando la alerta automática al supervisor de operaciones sin depender de que alguien revise los reportes manualmente. También identifica si un local acumula tres semanas consecutivas de merma no explicada, para escalar directamente a Felipe Guerrero según el protocolo.
+**Información que necesitaría**: inventario actual por local y categoría, historial de consumo diario, calendario de entregas por proveedor/categoría, y los registros de desperdicio que ya se capturan por turno en la app de operaciones.
+ 
+**Qué produciría o desencadenaría**: propuestas de pedido (regular o de emergencia) listas para aprobar, alertas automáticas de merma anómala al supervisor correspondiente, y un reporte semanal por local que muestre la tendencia de desperdicio frente a la meta operativa del 4%.
