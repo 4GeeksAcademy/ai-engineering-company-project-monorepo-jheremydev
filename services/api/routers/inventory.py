@@ -6,6 +6,7 @@ from models.inventory import (
 	Articulo,
 	ArticuloCreate,
 	Local,
+	LocalCreate,
 	Movimiento,
 	MovimientoCreate,
 )
@@ -13,6 +14,16 @@ from storage import inventory as storage
 
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
+
+
+@router.post("/locals", response_model=Local, status_code=201)
+def create_local(payload: LocalCreate) -> Local:
+	return storage.create_local(payload)
+
+
+@router.get("/locals", response_model=list[Local])
+def list_locals() -> list[Local]:
+	return storage.list_locals()
 
 
 @router.post("/articles", response_model=Articulo, status_code=201)
@@ -43,6 +54,8 @@ def create_movement(payload: MovimientoCreate) -> Movimiento:
 		return storage.register_movement(payload)
 	except storage.ArticleNotFoundError as error:
 		raise HTTPException(status_code=404, detail=str(error)) from error
+	except storage.LocalNotFoundError as error:
+		raise HTTPException(status_code=404, detail=str(error)) from error
 	except storage.NegativeStockError as error:
 		raise HTTPException(status_code=409, detail=str(error)) from error
 
@@ -50,10 +63,12 @@ def create_movement(payload: MovimientoCreate) -> Movimiento:
 @router.get("/movements", response_model=list[Movimiento])
 def list_movements(
 	articulo_id: Optional[str] = None,
-	local: Optional[Local] = None,
+	local: Optional[str] = None,
 ) -> list[Movimiento]:
 	if articulo_id is not None and storage.find_article(articulo_id) is None:
 		raise HTTPException(status_code=404, detail="Artículo no encontrado")
+	if local is not None and storage.find_local(local) is None:
+		raise HTTPException(status_code=404, detail="Local no encontrado")
 	return storage.list_movements(articulo_id=articulo_id, local=local)
 
 
@@ -68,9 +83,11 @@ def get_movement(movement_id: str) -> Movimiento:
 @router.get("/stock")
 def get_stock(
 	articulo_id: str = Query(min_length=1),
-	local: Local = Query(...),
+	local: str = Query(min_length=1),
 ) -> dict[str, object]:
 	article = _find_article(articulo_id)
+	if storage.find_local(local) is None:
+		raise HTTPException(status_code=404, detail="Local no encontrado")
 	return {
 		"articulo_id": article.id,
 		"local": local,
