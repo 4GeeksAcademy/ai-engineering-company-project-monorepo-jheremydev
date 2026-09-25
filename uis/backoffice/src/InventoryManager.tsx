@@ -2,12 +2,11 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   inventoryCategories,
-  inventoryLocals,
   inventoryUnits,
   movementTypes,
   type InventoryArticle,
   type InventoryCategory,
-  type InventoryLocal,
+  type InventoryLocation,
   type InventoryMovement,
   type InventoryStock,
   type MovementType,
@@ -17,8 +16,10 @@ import {
 } from '@repo/shared-types'
 import {
   createArticle,
+  createLocal,
   createMovement,
   getArticles,
+  getLocals,
   getMovements,
   getStock,
 } from './api/inventory'
@@ -38,7 +39,7 @@ function localDateTimeValue() {
 }
 
 const createEmptyMovementForm = (): MovementFormState => ({
-  local: inventoryLocals[0],
+  local: '',
   tipo: movementTypes[0],
   cantidad: '',
   autor: '',
@@ -61,15 +62,18 @@ function formatDate(value: string) {
 
 function InventoryManager() {
   const [articles, setArticles] = useState<InventoryArticle[]>([])
+  const [locations, setLocations] = useState<InventoryLocation[]>([])
   const [movements, setMovements] = useState<InventoryMovement[]>([])
   const [selectedArticleId, setSelectedArticleId] = useState('')
   const [stockArticleId, setStockArticleId] = useState('')
-  const [stockLocal, setStockLocal] = useState<InventoryLocal>(inventoryLocals[0])
+  const [stockLocal, setStockLocal] = useState('')
   const [stock, setStock] = useState<InventoryStock | null>(null)
   const [articleForm, setArticleForm] = useState<NewInventoryArticle>(createEmptyArticleForm)
   const [movementForm, setMovementForm] = useState<MovementFormState>(createEmptyMovementForm)
+  const [locationName, setLocationName] = useState('')
   const [loading, setLoading] = useState(true)
   const [savingArticle, setSavingArticle] = useState(false)
+  const [savingLocation, setSavingLocation] = useState(false)
   const [savingMovement, setSavingMovement] = useState(false)
   const [loadingStock, setLoadingStock] = useState(false)
   const [error, setError] = useState('')
@@ -77,13 +81,19 @@ function InventoryManager() {
 
   useEffect(() => {
     let active = true
-    void Promise.all([getArticles(), getMovements()])
-      .then(([articleData, movementData]) => {
+    void Promise.all([getArticles(), getMovements(), getLocals()])
+      .then(([articleData, movementData, locationData]) => {
         if (!active) return
         setArticles(articleData)
         setMovements(movementData)
+        setLocations(locationData)
         setSelectedArticleId(articleData[0]?.id ?? '')
         setStockArticleId(articleData[0]?.id ?? '')
+        setMovementForm((current) => ({
+          ...current,
+          local: current.local || locationData[0]?.id || '',
+        }))
+        setStockLocal(locationData[0]?.id ?? '')
       })
       .catch((requestError: unknown) => {
         if (active) setError(errorMessage(requestError, 'No se pudo cargar el inventario.'))
@@ -101,6 +111,11 @@ function InventoryManager() {
     const [articleData, movementData] = await Promise.all([getArticles(), getMovements()])
     setArticles(articleData)
     setMovements(movementData)
+  }
+
+  const reloadLocations = async () => {
+    const data = await getLocals()
+    setLocations(data)
   }
 
   const handleCreateArticle = async (event: FormEvent<HTMLFormElement>) => {
@@ -123,6 +138,26 @@ function InventoryManager() {
       setError(errorMessage(requestError, 'No se pudo registrar el artículo.'))
     } finally {
       setSavingArticle(false)
+    }
+  }
+
+  const handleCreateLocation = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSavingLocation(true)
+    setError('')
+    setNotice('')
+    try {
+      const location = await createLocal({ nombre: locationName.trim() })
+      await reloadLocations()
+      setLocationName('')
+      setMovementForm((current) => ({ ...current, local: location.id }))
+      setStockLocal(location.id)
+      setStock(null)
+      setNotice(`Local "${location.nombre}" creado correctamente.`)
+    } catch (requestError) {
+      setError(errorMessage(requestError, 'No se pudo registrar el local.'))
+    } finally {
+      setSavingLocation(false)
     }
   }
 
@@ -241,6 +276,28 @@ function InventoryManager() {
             </form>
           </section>
 
+          <section className="panel form-panel">
+            <div className="panel-heading">
+              <div>
+                <span className="section-kicker">Catálogo gestionado</span>
+                <h2>Crear local</h2>
+              </div>
+            </div>
+            <form onSubmit={handleCreateLocation}>
+              <label className="field">
+                <span>Nombre</span>
+                <input
+                  required
+                  value={locationName}
+                  onChange={(event) => setLocationName(event.target.value)}
+                />
+              </label>
+              <button className="primary-button" type="submit" disabled={savingLocation}>
+                {savingLocation ? 'Guardando...' : 'Crear local'} <span>→</span>
+              </button>
+            </form>
+          </section>
+
           <section className="panel list-panel">
             <div className="panel-heading list-heading">
               <div>
@@ -303,14 +360,17 @@ function InventoryManager() {
                 <label className="field">
                   <span>Local</span>
                   <select
+                    required
                     value={movementForm.local}
+                    disabled={locations.length === 0}
                     onChange={(event) => setMovementForm({
                       ...movementForm,
-                      local: event.target.value as InventoryLocal,
+                      local: event.target.value,
                     })}
                   >
-                    {inventoryLocals.map((local) => (
-                      <option key={local} value={local}>{local}</option>
+                    <option value="">Seleccionar local</option>
+                    {locations.map((location) => (
+                      <option key={location.id} value={location.id}>{location.nombre}</option>
                     ))}
                   </select>
                 </label>
@@ -373,7 +433,7 @@ function InventoryManager() {
               <button
                 className="primary-button"
                 type="submit"
-                disabled={savingMovement || articles.length === 0}
+                disabled={savingMovement || articles.length === 0 || locations.length === 0}
               >
                 {savingMovement ? 'Guardando...' : 'Registrar movimiento'} <span>→</span>
               </button>
@@ -408,14 +468,17 @@ function InventoryManager() {
               <label className="field">
                 <span>Local</span>
                 <select
+                  required
                   value={stockLocal}
+                  disabled={locations.length === 0}
                   onChange={(event) => {
-                    setStockLocal(event.target.value as InventoryLocal)
+                    setStockLocal(event.target.value)
                     setStock(null)
                   }}
                 >
-                  {inventoryLocals.map((local) => (
-                    <option key={local} value={local}>{local}</option>
+                  <option value="">Seleccionar local</option>
+                  {locations.map((location) => (
+                    <option key={location.id} value={location.id}>{location.nombre}</option>
                   ))}
                 </select>
               </label>
