@@ -2,14 +2,18 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   inventoryCategories,
+  inventoryLocals,
+  inventoryUnits,
   movementTypes,
   type InventoryArticle,
   type InventoryCategory,
+  type InventoryLocal,
   type InventoryMovement,
   type InventoryStock,
   type MovementType,
   type NewInventoryArticle,
   type NewInventoryMovement,
+  type InventoryUnit,
 } from '@repo/shared-types'
 import {
   createArticle,
@@ -24,7 +28,7 @@ type MovementFormState = Omit<NewInventoryMovement, 'articulo_id'>
 const createEmptyArticleForm = (): NewInventoryArticle => ({
   nombre: '',
   categoria: inventoryCategories[0],
-  unidad_medida: '',
+  unidad_medida: inventoryUnits[0],
 })
 
 function localDateTimeValue() {
@@ -34,7 +38,7 @@ function localDateTimeValue() {
 }
 
 const createEmptyMovementForm = (): MovementFormState => ({
-  local: '',
+  local: inventoryLocals[0],
   tipo: movementTypes[0],
   cantidad: '',
   autor: '',
@@ -60,7 +64,7 @@ function InventoryManager() {
   const [movements, setMovements] = useState<InventoryMovement[]>([])
   const [selectedArticleId, setSelectedArticleId] = useState('')
   const [stockArticleId, setStockArticleId] = useState('')
-  const [stockLocal, setStockLocal] = useState('')
+  const [stockLocal, setStockLocal] = useState<InventoryLocal>(inventoryLocals[0])
   const [stock, setStock] = useState<InventoryStock | null>(null)
   const [articleForm, setArticleForm] = useState<NewInventoryArticle>(createEmptyArticleForm)
   const [movementForm, setMovementForm] = useState<MovementFormState>(createEmptyMovementForm)
@@ -108,7 +112,6 @@ function InventoryManager() {
       const article = await createArticle({
         ...articleForm,
         nombre: articleForm.nombre.trim(),
-        unidad_medida: articleForm.unidad_medida.trim(),
       })
       setArticleForm(createEmptyArticleForm())
       setSelectedArticleId(article.id)
@@ -131,7 +134,7 @@ function InventoryManager() {
     try {
       const payload: NewInventoryMovement = {
         articulo_id: selectedArticleId,
-        local: movementForm.local.trim(),
+        local: movementForm.local,
         tipo: movementForm.tipo,
         cantidad: movementForm.cantidad,
         autor: movementForm.autor.trim(),
@@ -159,7 +162,7 @@ function InventoryManager() {
     setNotice('')
     setStock(null)
     try {
-      const result = await getStock(stockArticleId, stockLocal.trim())
+      const result = await getStock(stockArticleId, stockLocal)
       setStock(result)
     } catch (requestError) {
       setError(errorMessage(requestError, 'No se pudo consultar el stock.'))
@@ -220,15 +223,17 @@ function InventoryManager() {
               </label>
               <label className="field">
                 <span>Unidad de medida</span>
-                <input
-                  required
+                <select
                   value={articleForm.unidad_medida}
                   onChange={(event) => setArticleForm({
                     ...articleForm,
-                    unidad_medida: event.target.value,
+                    unidad_medida: event.target.value as InventoryUnit,
                   })}
-                  placeholder="kg, unidad, litro..."
-                />
+                >
+                  {inventoryUnits.map((unit) => (
+                    <option key={unit} value={unit}>{unit}</option>
+                  ))}
+                </select>
               </label>
               <button className="primary-button" type="submit" disabled={savingArticle}>
                 {savingArticle ? 'Guardando...' : 'Registrar artículo'} <span>→</span>
@@ -297,12 +302,17 @@ function InventoryManager() {
               <div className="field-row">
                 <label className="field">
                   <span>Local</span>
-                  <input
-                    required
+                  <select
                     value={movementForm.local}
-                    onChange={(event) => setMovementForm({ ...movementForm, local: event.target.value })}
-                    placeholder="Nombre o código"
-                  />
+                    onChange={(event) => setMovementForm({
+                      ...movementForm,
+                      local: event.target.value as InventoryLocal,
+                    })}
+                  >
+                    {inventoryLocals.map((local) => (
+                      <option key={local} value={local}>{local}</option>
+                    ))}
+                  </select>
                 </label>
                 <label className="field">
                   <span>Tipo</span>
@@ -397,15 +407,17 @@ function InventoryManager() {
               </label>
               <label className="field">
                 <span>Local</span>
-                <input
-                  required
+                <select
                   value={stockLocal}
                   onChange={(event) => {
-                    setStockLocal(event.target.value)
+                    setStockLocal(event.target.value as InventoryLocal)
                     setStock(null)
                   }}
-                  placeholder="Nombre o código del local"
-                />
+                >
+                  {inventoryLocals.map((local) => (
+                    <option key={local} value={local}>{local}</option>
+                  ))}
+                </select>
               </label>
               <button className="primary-button" type="submit" disabled={loadingStock || articles.length === 0}>
                 {loadingStock ? 'Consultando...' : 'Consultar stock'} <span>→</span>
