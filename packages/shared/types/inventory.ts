@@ -25,7 +25,7 @@ export interface InventoryMovement {
   articulo_id: string
   local: string
   tipo: MovementType
-  cantidad: number
+  cantidad: string
   autor: string
   fecha: string
   motivo?: string | null
@@ -34,7 +34,7 @@ export interface InventoryMovement {
 export interface InventoryStock {
   articulo_id: string
   local: string
-  stock: number
+  stock: string
   unidad_medida: string
 }
 
@@ -48,7 +48,7 @@ export interface NewInventoryMovement {
   articulo_id: string
   local: string
   tipo: MovementType
-  cantidad: number
+  cantidad: string
   autor: string
   fecha: string
   motivo?: string | null
