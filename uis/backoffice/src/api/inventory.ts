@@ -1,10 +1,11 @@
 import type {
   InventoryArticle,
-  InventoryLocal,
+  InventoryLocation,
   InventoryMovement,
   InventoryMovementFilters,
   InventoryStock,
   NewInventoryArticle,
+  NewInventoryLocation,
   NewInventoryMovement,
 } from '@repo/shared-types'
 import { request } from './client'
@@ -19,6 +20,17 @@ export function getArticle(id: string) {
 
 export function createArticle(payload: NewInventoryArticle) {
   return request<InventoryArticle>('/inventory/articles', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getLocals() {
+  return request<InventoryLocation[]>('/inventory/locals')
+}
+
+export function createLocal(payload: NewInventoryLocation) {
+  return request<InventoryLocation>('/inventory/locals', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -43,7 +55,7 @@ export function createMovement(payload: NewInventoryMovement) {
   })
 }
 
-export function getStock(articuloId: string, local: InventoryLocal) {
+export function getStock(articuloId: string, local: string) {
   const params = new URLSearchParams({ articulo_id: articuloId, local })
   return request<InventoryStock>(`/inventory/stock?${params.toString()}`)
 }
