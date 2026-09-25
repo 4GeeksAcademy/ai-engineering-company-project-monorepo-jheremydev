@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { createIncident, getIncident, getIncidents, updateIncident } from './api'
+import { createIncident, getIncident, getIncidents, updateIncident } from './api/incidents'
 import { areas, channels, incidentTypes, severities, statuses, type Area, type Incident, type IncidentFilters, type IncidentType, type NewIncident, type Severity, type Status } from './types'
 import './App.css'
 

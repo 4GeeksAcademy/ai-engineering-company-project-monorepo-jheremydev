@@ -5,7 +5,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from models import (
+from models.incidents import (
 	AreaResponsable,
 	Canal,
 	EstadoIncidencia,
@@ -14,7 +14,7 @@ from models import (
 	Severidad,
 	TipoIncidencia,
 )
-import storage
+from storage import incidents as storage
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
