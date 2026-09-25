@@ -5,6 +5,8 @@ from uuid import uuid4
 from models.inventory import (
     Articulo,
     ArticuloCreate,
+    Local,
+    LocalCreate,
     Movimiento,
     MovimientoCreate,
     TipoMovimiento,
@@ -12,10 +14,15 @@ from models.inventory import (
 
 
 articulos: list[Articulo] = []
+locales: list[Local] = []
 movimientos: list[Movimiento] = []
 
 
 class ArticleNotFoundError(ValueError):
+    pass
+
+
+class LocalNotFoundError(ValueError):
     pass
 
 
@@ -35,6 +42,20 @@ def list_articles() -> list[Articulo]:
 
 def find_article(article_id: str) -> Optional[Articulo]:
     return next((article for article in articulos if article.id == article_id), None)
+
+
+def create_local(payload: LocalCreate) -> Local:
+    local = Local(id=str(uuid4()), **payload.model_dump())
+    locales.append(local)
+    return local
+
+
+def list_locals() -> list[Local]:
+    return list(locales)
+
+
+def find_local(local_id: str) -> Optional[Local]:
+    return next((local for local in locales if local.id == local_id), None)
 
 
 def list_movements(
@@ -75,6 +96,8 @@ def register_movement(payload: MovimientoCreate) -> Movimiento:
         raise ArticleNotFoundError(
             f"Artículo no encontrado: {payload.articulo_id}"
         )
+    if find_local(payload.local) is None:
+        raise LocalNotFoundError(f"Local no encontrado: {payload.local}")
 
     resulting_stock = calculate_stock(payload.articulo_id, payload.local)
     resulting_stock += _stock_delta(payload)
