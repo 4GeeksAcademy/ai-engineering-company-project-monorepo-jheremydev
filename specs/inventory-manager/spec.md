@@ -34,9 +34,11 @@ Las convenciones y el contexto ya documentado se encuentran en `memory-bank/`.
 - **INV-018 (Comportamiento no deseado):** Si falta el autor o la fecha al registrar un movimiento, el sistema rechaza el registro y no modifica el stock calculado.
 - **INV-019 (Opcional):** Si se proporciona un motivo o una nota al registrar un movimiento, el sistema conserva ese dato con el movimiento; su ausencia no impide el registro.
 - **INV-020 (Comportamiento no deseado):** Si se intenta editar o eliminar un movimiento ya registrado, el sistema rechaza la operación y conserva el historial y el stock calculado a partir de él.
-- **INV-021 (Ubicuo):** El local pertenece a un catálogo cerrado de 14 locales definidos por el sistema. Como Brasaland opera 14 locales cuyos nombres reales no están enumerados en CONTEXT.md ni en company-choice.md, el catálogo usa identificadores genéricos configurables: Local 01 a Local 14.
+- **INV-021 (Ubicuo):** El local es una entidad gestionada por el sistema, análoga al catálogo de artículos: se crea y consulta mediante sus propios endpoints, no está fijado en el código ni es texto libre sin validar.
 - **INV-022 (Comportamiento no deseado):** Si se intenta registrar un artículo con una unidad de medida fuera del catálogo cerrado, el sistema rechaza el registro.
-- **INV-023 (Comportamiento no deseado):** Si se intenta registrar un movimiento con un local fuera del catálogo cerrado, el sistema rechaza el registro.
+- **INV-023 (Comportamiento no deseado):** Si se intenta registrar un movimiento con un local que no existe en el catálogo, el sistema rechaza el registro y no altera el stock calculado.
+- **INV-024 (Basado en evento):** Cuando se registra un local con nombre válido, el sistema lo persiste con un identificador único y lo deja disponible para registrar movimientos y consultar su stock. Si falta el nombre, el sistema rechaza el registro.
+- **INV-025 (Ubicuo):** El catálogo de locales es común a toda la aplicación; cada local tiene un identificador único y un nombre no vacío.
 
 ## Preguntas abiertas / decisiones pendientes
 
