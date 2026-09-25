@@ -23,7 +23,7 @@ Las convenciones y el contexto ya documentado se encuentran en `memory-bank/`.
 - **INV-007 (Comportamiento no deseado):** Si se intenta asignar o modificar directamente el stock de un artículo, el sistema no ofrece esa operación y no cambia el stock; los cambios de existencias se registran mediante movimientos.
 - **INV-008 (Ubicuo):** El catálogo de artículos es común a todos los locales: el mismo artículo conserva su identificador en cualquier local.
 - **INV-009 (Ubicuo):** Cada artículo tiene un identificador único, nombre, unidad de medida y una categoría entre carne, verduras, salsas, bebidas, packaging y productos de limpieza.
-- **INV-010 (Ubicuo):** Cada artículo tiene una unidad de medida simple, por ejemplo kg, unidad o litro.
+- **INV-010 (Ubicuo):** Cada artículo tiene una unidad de medida que pertenece a un catálogo cerrado definido por el sistema: kg, g, l, ml, unidad.
 - **INV-011 (Ubicuo):** El sistema no convierte cantidades entre unidades de medida.
 - **INV-012 (Basado en evento):** Cuando se registra un movimiento con una cantidad decimal válida, el sistema admite esa cantidad sin exigir que sea entera.
 - **INV-013 (Basado en evento):** Cuando se registra inventario inicial de un artículo en un local, el sistema lo registra como movimiento de tipo ajuste, nunca como entrada.
@@ -34,7 +34,9 @@ Las convenciones y el contexto ya documentado se encuentran en `memory-bank/`.
 - **INV-018 (Comportamiento no deseado):** Si falta el autor o la fecha al registrar un movimiento, el sistema rechaza el registro y no modifica el stock calculado.
 - **INV-019 (Opcional):** Si se proporciona un motivo o una nota al registrar un movimiento, el sistema conserva ese dato con el movimiento; su ausencia no impide el registro.
 - **INV-020 (Comportamiento no deseado):** Si se intenta editar o eliminar un movimiento ya registrado, el sistema rechaza la operación y conserva el historial y el stock calculado a partir de él.
-- **INV-021 (Ubicuo):** El local es un identificador de texto libre (no un catálogo cerrado en este módulo), ya que Brasaland opera 14 locales cuyos nombres o códigos no están enumerados en CONTEXT.md ni en company-choice.md.
+- **INV-021 (Ubicuo):** El local pertenece a un catálogo cerrado de 14 locales definidos por el sistema. Como Brasaland opera 14 locales cuyos nombres reales no están enumerados en CONTEXT.md ni en company-choice.md, el catálogo usa identificadores genéricos configurables: Local 01 a Local 14.
+- **INV-022 (Comportamiento no deseado):** Si se intenta registrar un artículo con una unidad de medida fuera del catálogo cerrado, el sistema rechaza el registro.
+- **INV-023 (Comportamiento no deseado):** Si se intenta registrar un movimiento con un local fuera del catálogo cerrado, el sistema rechaza el registro.
 
 ## Preguntas abiertas / decisiones pendientes
 
