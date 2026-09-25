@@ -9,6 +9,7 @@ from models.inventory import (
     ArticuloCreate,
     CategoriaArticulo,
     Local,
+    LocalCreate,
     Movimiento,
     MovimientoCreate,
     TipoMovimiento,
@@ -79,6 +80,22 @@ class InventoryModelTests(unittest.TestCase):
                 unidad_medida="lb",
             )
 
+    def test_local_create_accepts_non_empty_name(self) -> None:
+        location = LocalCreate(nombre="Cocina Norte")
+
+        self.assertEqual(location.nombre, "Cocina Norte")
+
+    def test_local_create_rejects_missing_or_empty_name(self) -> None:
+        with self.assertRaises(ValidationError):
+            LocalCreate()
+
+        with self.assertRaises(ValidationError):
+            LocalCreate(nombre="   ")
+
+    def test_persisted_local_requires_id(self) -> None:
+        with self.assertRaises(ValidationError):
+            Local(nombre="Cocina Norte")
+
     def test_movement_accepts_types_decimal_quantities_and_optional_reason(self) -> None:
         for movement_type, quantity in (
             (TipoMovimiento.ENTRADA, Decimal("2.75")),
@@ -89,7 +106,7 @@ class InventoryModelTests(unittest.TestCase):
             with self.subTest(movement_type=movement_type, quantity=quantity):
                 movement = MovimientoCreate(
                     articulo_id="article-1",
-                    local=Local.LOCAL_01,
+                    local="local-1",
                     tipo=movement_type,
                     cantidad=quantity,
                     autor="operador",
@@ -97,18 +114,6 @@ class InventoryModelTests(unittest.TestCase):
                 )
                 self.assertEqual(movement.cantidad, quantity)
                 self.assertIsNone(movement.motivo)
-
-        for local in Local:
-            with self.subTest(local=local):
-                movement = MovimientoCreate(
-                    articulo_id="article-1",
-                    local=local,
-                    tipo=TipoMovimiento.ENTRADA,
-                    cantidad=Decimal("1"),
-                    autor="operador",
-                    fecha=datetime(2026, 9, 25, 12, 0),
-                )
-                self.assertEqual(movement.local, local)
 
         with_reason = self.valid_movement_payload(motivo="Inventario inicial")
         self.assertEqual(MovimientoCreate(**with_reason).motivo, "Inventario inicial")
@@ -146,21 +151,18 @@ class InventoryModelTests(unittest.TestCase):
                 with self.assertRaises(ValidationError):
                     MovimientoCreate(**payload)
 
-        with self.subTest(empty_field="autor"):
-            payload = valid_payload.copy()
-            payload["autor"] = "   "
-            with self.assertRaises(ValidationError):
-                MovimientoCreate(**payload)
-
-    def test_movement_rejects_local_outside_catalog(self) -> None:
-        with self.assertRaises(ValidationError):
-            MovimientoCreate(**self.valid_movement_payload(local="Brasaland Norte"))
+        for field in ("local", "autor"):
+            with self.subTest(empty_field=field):
+                payload = valid_payload.copy()
+                payload[field] = "   "
+                with self.assertRaises(ValidationError):
+                    MovimientoCreate(**payload)
 
     @staticmethod
     def valid_movement_payload(**overrides: object) -> dict[str, object]:
         payload: dict[str, object] = {
             "articulo_id": "article-1",
-            "local": Local.LOCAL_01,
+            "local": "local-1",
             "tipo": TipoMovimiento.ENTRADA,
             "cantidad": Decimal("2.5"),
             "autor": "operador",
