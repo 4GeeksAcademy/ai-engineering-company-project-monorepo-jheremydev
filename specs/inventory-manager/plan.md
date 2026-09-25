@@ -1,6 +1,6 @@
 # Plan técnico del gestor de inventario (Fase 2 - Plan)
 
-Este documento define la arquitectura y los contratos que guiarán la implementación de los criterios INV-001 a INV-021. El backend se integrará en la API FastAPI centralizada; no se crea un microservicio ni se añade una dependencia nueva.
+Este documento define la arquitectura y los contratos que guiarán la implementación de los criterios INV-001 a INV-023. El backend se integrará en la API FastAPI centralizada; no se crea un microservicio ni se añade una dependencia nueva.
 
 ## 1. Modelo de datos
 
@@ -11,9 +11,9 @@ Los modelos persistidos del dominio vivirán en `services/api/models/inventory.p
 - `id: str`: UUID generado al registrar el artículo; identifica el mismo artículo en todos los locales (INV-003, INV-008, INV-009).
 - `nombre: str`: obligatorio y no vacío (INV-003, INV-009).
 - `categoria: CategoriaArticulo`: enum limitado a `carne`, `verduras`, `salsas`, `bebidas`, `packaging` y `productos de limpieza` (INV-003, INV-009).
-- `unidad_medida: str`: obligatoria y no vacía; texto simple, por ejemplo `kg`, `unidad` o `litro`, sin conversión entre unidades (INV-003, INV-010, INV-011).
+- `unidad_medida: UnidadMedida`: enum limitado a `kg`, `g`, `l`, `ml` y `unidad` (INV-003, INV-010, INV-011).
 
-`CategoriaArticulo` será un enum de texto. El catálogo de artículos no contiene local ni stock: es global y común a todos los locales (INV-001, INV-008).
+`CategoriaArticulo` y `UnidadMedida` serán enums de texto. El catálogo de artículos no contiene local ni stock: es global y común a todos los locales (INV-001, INV-008). La validación de unidad fuera del catálogo queda a cargo del enum y Pydantic la rechaza automáticamente con `422`; no requiere validación manual adicional (INV-022).
 
 ### `Movimiento` y `TipoMovimiento`
 
@@ -21,12 +21,14 @@ Los modelos persistidos del dominio vivirán en `services/api/models/inventory.p
 
 - `id: str`: UUID generado para conservar e identificar cada registro (INV-004, INV-020).
 - `articulo_id: str`: referencia obligatoria a un artículo existente; evita mezclar existencias entre artículos (INV-002, INV-004, INV-006).
-- `local: str`: identificador obligatorio y no vacío de texto libre, no validado contra un catálogo cerrado (INV-002, INV-004, INV-006, INV-021).
+- `local: Local`: enum limitado a `Local 01` a `Local 14` (INV-002, INV-004, INV-006, INV-021).
 - `tipo: TipoMovimiento`: obligatorio y limitado a los tres tipos admitidos (INV-004, INV-006, INV-013).
 - `cantidad: Decimal`: obligatoria y admite fracciones. Entrada y salida requieren cantidad mayor que cero; ajuste conserva el signo de la cantidad para sumar o restar (INV-006, INV-012, INV-014, INV-015, INV-016).
 - `autor: str`: obligatorio y no vacío; no se sintetiza si falta en el payload (INV-017, INV-018).
 - `fecha: datetime`: obligatoria y aportada al registrar; no se sustituye por una fecha implícita si falta (INV-017, INV-018).
 - `motivo: str | None`: nota opcional, conservada si se proporciona (INV-019).
+
+`Local` será un enum de texto con los 14 identificadores genéricos configurables. Los enums `UnidadMedida` y `Local` hacen la validación de sus catálogos cerrados: Pydantic rechaza automáticamente valores no admitidos con `422`, sin validación manual adicional (INV-022, INV-023).
 
 No habrá campo de stock mutable en `Articulo`, `Movimiento` ni en los payloads de movimiento. Tampoco habrá operaciones para editar o eliminar movimientos (INV-001, INV-007, INV-020). Registrar inventario inicial consiste en crear un movimiento `ajuste` con la cantidad inicial, no una `entrada` (INV-013).
 
@@ -53,13 +55,13 @@ El router se ubicará en `services/api/routers/inventory.py`, con prefijo `/inve
 
 | Método y ruta | Comportamiento y criterios | Respuestas de error |
 |---|---|---|
-| `POST /inventory/articles` | Crea un artículo con UUID y lo incorpora al catálogo común (INV-003, INV-008, INV-009). Responde `201`. | `422` si falta nombre, categoría o unidad, o si su valor no es válido (INV-003, INV-009, INV-010). |
+| `POST /inventory/articles` | Crea un artículo con UUID y lo incorpora al catálogo común (INV-003, INV-008, INV-009). Responde `201`. | `422` si falta nombre, categoría o unidad, si su valor no es válido (INV-003, INV-009, INV-010), o si `unidad_medida` no pertenece al enum `UnidadMedida` (validación Pydantic, INV-022). |
 | `GET /inventory/articles` | Lista el catálogo común, sin duplicarlo por local (INV-008, INV-009). Responde `200`. | No aplica validación de local. |
 | `GET /inventory/articles/{article_id}` | Consulta un artículo por su identificador global (INV-003, INV-008). Responde `200`. | `404` si no existe el artículo. |
-| `POST /inventory/movements` | Registra una entrada, salida o ajuste y conserva el movimiento y sus metadatos (INV-004, INV-012 a INV-019, INV-021). Responde `201`. | `422` ante campos requeridos ausentes, local vacío, tipo inválido, cantidad no válida, o autor/fecha ausentes (INV-006, INV-018); `404` si `articulo_id` no identifica un artículo (INV-006); `409` si una salida o ajuste negativo dejaría saldo menor que cero, sin anexar el movimiento (INV-016). El local libre no se rechaza por no pertenecer a un catálogo (INV-021). |
-| `GET /inventory/movements` | Consulta el historial, con filtros opcionales `articulo_id` y `local`; filtrar por ambos permite inspeccionar exactamente el historial que compone un saldo (INV-002, INV-004, INV-017, INV-019, INV-020, INV-021). Responde `200`. | `404` si se filtra por un identificador de artículo inexistente. |
+| `POST /inventory/movements` | Registra una entrada, salida o ajuste y conserva el movimiento y sus metadatos (INV-004, INV-012 a INV-019, INV-021). Responde `201`. | `422` ante campos requeridos ausentes, tipo inválido, cantidad no válida, autor/fecha ausentes (INV-006, INV-018), o `local` fuera del enum `Local` (validación Pydantic, INV-023); `404` si `articulo_id` no identifica un artículo (INV-006); `409` si una salida o ajuste negativo dejaría saldo menor que cero, sin anexar el movimiento (INV-016). |
+| `GET /inventory/movements` | Consulta el historial, con filtros opcionales `articulo_id` y `local`; `local`, cuando se proporciona, debe pertenecer al enum `Local`. Filtrar por ambos permite inspeccionar exactamente el historial que compone un saldo (INV-002, INV-004, INV-017, INV-019, INV-020, INV-021). Responde `200`. | `404` si se filtra por un identificador de artículo inexistente; `422` si `local` no pertenece al catálogo (validación Pydantic, INV-023). |
 | `GET /inventory/movements/{movement_id}` | Consulta un movimiento existente con todos sus datos preservados (INV-004, INV-017, INV-019, INV-020). Responde `200`. | `404` si no existe el movimiento. |
-| `GET /inventory/stock?articulo_id=…&local=…` | Calcula y devuelve el stock para el par exacto de artículo y local, incluso cero si no hay movimientos (INV-001, INV-002, INV-005, INV-008, INV-011, INV-021). Responde `200`. | `422` si falta alguno de los dos parámetros; `404` si el artículo no existe. |
+| `GET /inventory/stock?articulo_id=…&local=…` | Calcula y devuelve el stock para el par exacto de artículo y local, incluso cero si no hay movimientos; ambos parámetros son obligatorios y `local` debe pertenecer al enum `Local` (INV-001, INV-002, INV-005, INV-008, INV-011, INV-021). Responde `200`. | `422` si falta alguno de los dos parámetros o si `local` no pertenece al catálogo (validación Pydantic, INV-023); `404` si el artículo no existe. |
 
 Los cuerpos inválidos usan el `422` de validación de FastAPI/Pydantic. No se implementarán endpoints de escritura de stock ni de `PATCH`, `PUT` o `DELETE` de movimientos. Cuando la ruta del recurso exista, esos métodos no admitidos responderán `405 Method Not Allowed`; las rutas no registradas responden `404`. Así se rechaza la modificación directa del stock y se preserva la inmutabilidad del historial (INV-007, INV-020).
 
@@ -68,11 +70,15 @@ Los cuerpos inválidos usan el `422` de validación de FastAPI/Pydantic. No se i
 `packages/shared/types/inventory.ts` definirá los tipos que consume el backoffice a través de `@repo/shared-types`, siguiendo `incidents.ts`:
 
 - `inventoryCategories` y `InventoryCategory`, con las seis categorías del modelo.
+- `inventoryUnits` y `InventoryUnit`, con `kg`, `g`, `l`, `ml` y `unidad`.
+- `inventoryLocals` y `InventoryLocal`, con `Local 01` a `Local 14`.
 - `movementTypes` y `MovementType`, con `entrada`, `salida` y `ajuste`.
-- `InventoryArticle`, con identificador, nombre, categoría y unidad de medida.
-- `InventoryMovement`, con identificador, `articulo_id`, `local`, tipo, cantidad decimal representada como `number` en JSON, autor, fecha ISO como `string` y motivo opcional.
-- `InventoryStock`, con `articulo_id`, `local`, saldo y unidad de medida; es una respuesta calculada, no un campo editable del artículo.
+- `InventoryArticle`, con identificador, nombre, categoría y `unidad_medida: InventoryUnit`.
+- `InventoryMovement`, con identificador, `articulo_id`, `local: InventoryLocal`, tipo, cantidad decimal representada como `string` en JSON, autor, fecha ISO como `string` y motivo opcional.
+- `InventoryStock`, con `articulo_id`, `local: InventoryLocal`, saldo decimal representado como `string` en JSON y `unidad_medida: InventoryUnit`; es una respuesta calculada, no un campo editable del artículo.
 - `NewInventoryArticle`, `NewInventoryMovement` e `InventoryMovementFilters` para los payloads y filtros del cliente.
+
+`NewInventoryArticle.unidad_medida` usará `InventoryUnit`; `NewInventoryMovement.local` e `InventoryMovementFilters.local` usarán `InventoryLocal`.
 
 `packages/shared/types/index.ts` reexportará `./inventory`; las aplicaciones no redefinirán estos tipos localmente (INV-001 a INV-021, según el campo o contrato correspondiente).
 
@@ -80,7 +86,7 @@ Los cuerpos inválidos usan el `422` de validación de FastAPI/Pydantic. No se i
 
 `uis/backoffice/src/api/inventory.ts` seguirá el patrón de `api/incidents.ts`, importará tipos desde `@repo/shared-types` y delegará cada petición en `request<T>` de `api/client.ts`. No duplicará `fetch`, la URL base ni el manejo de errores.
 
-Expondrá `getArticles()`, `getArticle(id)`, `createArticle(payload)`, `getMovements(filters)`, `getMovement(id)`, `createMovement(payload)` y `getStock(articleId, local)`. Las funciones serializarán los payloads como JSON; para filtros y consulta de stock construirán los parámetros con `URLSearchParams`, de modo que el identificador de local de texto libre se transmita correctamente. No habrá función para cambiar stock, editar movimientos ni borrarlos (INV-001, INV-007, INV-020, INV-021).
+Expondrá `getArticles()`, `getArticle(id)`, `createArticle(payload)`, `getMovements(filters)`, `getMovement(id)`, `createMovement(payload)` y `getStock(articleId, local)`. Las funciones serializarán los payloads como JSON; para filtros y consulta de stock construirán los parámetros con `URLSearchParams`. El parámetro `local` de `getMovements` y `getStock` usará el tipo cerrado `InventoryLocal`, no cualquier `string` (INV-021, INV-023). No habrá función para cambiar stock, editar movimientos ni borrarlos (INV-001, INV-007, INV-020).
 
 ## 7. Fuera de este plan
 
