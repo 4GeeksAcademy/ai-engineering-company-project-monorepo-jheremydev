@@ -8,29 +8,40 @@ from models.inventory import (
     Articulo,
     ArticuloCreate,
     CategoriaArticulo,
+    Local,
     Movimiento,
     MovimientoCreate,
     TipoMovimiento,
+    UnidadMedida,
 )
 
 
 class InventoryModelTests(unittest.TestCase):
-    def test_article_accepts_all_categories_and_simple_units(self) -> None:
+    def test_article_accepts_all_categories_and_units(self) -> None:
         for category in CategoriaArticulo:
             with self.subTest(category=category):
                 article = ArticuloCreate(
                     nombre="Tomate",
                     categoria=category,
-                    unidad_medida="kg",
+                    unidad_medida=UnidadMedida.KG,
                 )
                 self.assertEqual(article.categoria, category)
+
+        for unit in UnidadMedida:
+            with self.subTest(unit=unit):
+                article = ArticuloCreate(
+                    nombre="Tomate",
+                    categoria=CategoriaArticulo.VERDURAS,
+                    unidad_medida=unit,
+                )
+                self.assertEqual(article.unidad_medida, unit)
 
     def test_persisted_article_requires_id(self) -> None:
         with self.assertRaises(ValidationError):
             Articulo(
                 nombre="Tomate",
                 categoria=CategoriaArticulo.VERDURAS,
-                unidad_medida="kg",
+                unidad_medida=UnidadMedida.KG,
             )
 
     def test_article_rejects_invalid_category_and_empty_required_fields(self) -> None:
@@ -38,13 +49,13 @@ class InventoryModelTests(unittest.TestCase):
             ArticuloCreate(
                 nombre="Tomate",
                 categoria="frutas",
-                unidad_medida="kg",
+                unidad_medida=UnidadMedida.KG,
             )
 
         valid_payload = {
             "nombre": "Tomate",
             "categoria": CategoriaArticulo.VERDURAS,
-            "unidad_medida": "kg",
+            "unidad_medida": UnidadMedida.KG,
         }
         for field in ("nombre", "categoria", "unidad_medida"):
             with self.subTest(field=field):
@@ -57,7 +68,15 @@ class InventoryModelTests(unittest.TestCase):
             ArticuloCreate(
                 nombre="   ",
                 categoria=CategoriaArticulo.VERDURAS,
-                unidad_medida="kg",
+                unidad_medida=UnidadMedida.KG,
+            )
+
+    def test_article_rejects_unit_outside_catalog(self) -> None:
+        with self.assertRaises(ValidationError):
+            ArticuloCreate(
+                nombre="Tomate",
+                categoria=CategoriaArticulo.VERDURAS,
+                unidad_medida="lb",
             )
 
     def test_movement_accepts_types_decimal_quantities_and_optional_reason(self) -> None:
@@ -70,7 +89,7 @@ class InventoryModelTests(unittest.TestCase):
             with self.subTest(movement_type=movement_type, quantity=quantity):
                 movement = MovimientoCreate(
                     articulo_id="article-1",
-                    local="Brasaland Norte",
+                    local=Local.LOCAL_01,
                     tipo=movement_type,
                     cantidad=quantity,
                     autor="operador",
@@ -78,6 +97,18 @@ class InventoryModelTests(unittest.TestCase):
                 )
                 self.assertEqual(movement.cantidad, quantity)
                 self.assertIsNone(movement.motivo)
+
+        for local in Local:
+            with self.subTest(local=local):
+                movement = MovimientoCreate(
+                    articulo_id="article-1",
+                    local=local,
+                    tipo=TipoMovimiento.ENTRADA,
+                    cantidad=Decimal("1"),
+                    autor="operador",
+                    fecha=datetime(2026, 9, 25, 12, 0),
+                )
+                self.assertEqual(movement.local, local)
 
         with_reason = self.valid_movement_payload(motivo="Inventario inicial")
         self.assertEqual(MovimientoCreate(**with_reason).motivo, "Inventario inicial")
@@ -115,18 +146,21 @@ class InventoryModelTests(unittest.TestCase):
                 with self.assertRaises(ValidationError):
                     MovimientoCreate(**payload)
 
-        for field in ("local", "autor"):
-            with self.subTest(empty_field=field):
-                payload = valid_payload.copy()
-                payload[field] = "   "
-                with self.assertRaises(ValidationError):
-                    MovimientoCreate(**payload)
+        with self.subTest(empty_field="autor"):
+            payload = valid_payload.copy()
+            payload["autor"] = "   "
+            with self.assertRaises(ValidationError):
+                MovimientoCreate(**payload)
+
+    def test_movement_rejects_local_outside_catalog(self) -> None:
+        with self.assertRaises(ValidationError):
+            MovimientoCreate(**self.valid_movement_payload(local="Brasaland Norte"))
 
     @staticmethod
     def valid_movement_payload(**overrides: object) -> dict[str, object]:
         payload: dict[str, object] = {
             "articulo_id": "article-1",
-            "local": "Brasaland Norte",
+            "local": Local.LOCAL_01,
             "tipo": TipoMovimiento.ENTRADA,
             "cantidad": Decimal("2.5"),
             "autor": "operador",

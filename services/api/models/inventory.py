@@ -20,6 +20,31 @@ class CategoriaArticulo(str, Enum):
     PRODUCTOS_DE_LIMPIEZA = "productos de limpieza"
 
 
+class UnidadMedida(str, Enum):
+    KG = "kg"
+    G = "g"
+    L = "l"
+    ML = "ml"
+    UNIDAD = "unidad"
+
+
+class Local(str, Enum):
+    LOCAL_01 = "Local 01"
+    LOCAL_02 = "Local 02"
+    LOCAL_03 = "Local 03"
+    LOCAL_04 = "Local 04"
+    LOCAL_05 = "Local 05"
+    LOCAL_06 = "Local 06"
+    LOCAL_07 = "Local 07"
+    LOCAL_08 = "Local 08"
+    LOCAL_09 = "Local 09"
+    LOCAL_10 = "Local 10"
+    LOCAL_11 = "Local 11"
+    LOCAL_12 = "Local 12"
+    LOCAL_13 = "Local 13"
+    LOCAL_14 = "Local 14"
+
+
 class TipoMovimiento(str, Enum):
     ENTRADA = "entrada"
     SALIDA = "salida"
@@ -29,7 +54,7 @@ class TipoMovimiento(str, Enum):
 class ArticuloCreate(BaseModel):
     nombre: TextoNoVacio
     categoria: CategoriaArticulo
-    unidad_medida: TextoNoVacio
+    unidad_medida: UnidadMedida
 
 
 class Articulo(ArticuloCreate):
@@ -38,7 +63,7 @@ class Articulo(ArticuloCreate):
 
 class MovimientoCreate(BaseModel):
     articulo_id: TextoNoVacio
-    local: TextoNoVacio
+    local: Local
     tipo: TipoMovimiento
     cantidad: Decimal
     autor: TextoNoVacio
