@@ -1,4 +1,4 @@
-import type { Incident, IncidentDetail, IncidentFilters, NewIncident, IncidentUpdate } from '../types'
+import type { Incident, IncidentDetail, IncidentFilters, NewIncident, IncidentUpdate } from '@repo/shared-types'
 import { request } from './client'
 
 export function getIncidents(filters: IncidentFilters = {}) {

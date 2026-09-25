@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { createIncident, getIncident, getIncidents, updateIncident } from './api/incidents'
-import { areas, channels, incidentTypes, severities, statuses, type Area, type Incident, type IncidentFilters, type IncidentType, type NewIncident, type Severity, type Status } from './types'
+import { areas, channels, incidentTypes, severities, statuses, type Area, type Incident, type IncidentFilters, type IncidentType, type NewIncident, type Severity, type Status } from '@repo/shared-types'
 import './App.css'
 
 const emptyForm: NewIncident = { canal: channels[0], tipo: incidentTypes[0], severidad: severities[1], area_responsable: areas[0], autor: '' }

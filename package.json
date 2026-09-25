@@ -1,0 +1,5 @@
+{
+  "name": "ai-engineering-company-project-monorepo",
+  "private": true,
+  "workspaces": ["uis/*", "packages/*"]
+}
