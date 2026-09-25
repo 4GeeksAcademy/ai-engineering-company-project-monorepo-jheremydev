@@ -13,25 +13,6 @@ export const inventoryUnits = ['kg', 'g', 'l', 'ml', 'unidad'] as const
 
 export type InventoryUnit = typeof inventoryUnits[number]
 
-export const inventoryLocals = [
-  'Local 01',
-  'Local 02',
-  'Local 03',
-  'Local 04',
-  'Local 05',
-  'Local 06',
-  'Local 07',
-  'Local 08',
-  'Local 09',
-  'Local 10',
-  'Local 11',
-  'Local 12',
-  'Local 13',
-  'Local 14',
-] as const
-
-export type InventoryLocal = typeof inventoryLocals[number]
-
 export const movementTypes = ['entrada', 'salida', 'ajuste'] as const
 
 export type MovementType = typeof movementTypes[number]
@@ -43,10 +24,15 @@ export interface InventoryArticle {
   unidad_medida: InventoryUnit
 }
 
+export interface InventoryLocation {
+  id: string
+  nombre: string
+}
+
 export interface InventoryMovement {
   id: string
   articulo_id: string
-  local: InventoryLocal
+  local: string
   tipo: MovementType
   cantidad: string
   autor: string
@@ -56,7 +42,7 @@ export interface InventoryMovement {
 
 export interface InventoryStock {
   articulo_id: string
-  local: InventoryLocal
+  local: string
   stock: string
   unidad_medida: InventoryUnit
 }
@@ -67,9 +53,13 @@ export interface NewInventoryArticle {
   unidad_medida: InventoryUnit
 }
 
+export interface NewInventoryLocation {
+  nombre: string
+}
+
 export interface NewInventoryMovement {
   articulo_id: string
-  local: InventoryLocal
+  local: string
   tipo: MovementType
   cantidad: string
   autor: string
@@ -79,5 +69,5 @@ export interface NewInventoryMovement {
 
 export interface InventoryMovementFilters {
   articulo_id?: string
-  local?: InventoryLocal
+  local?: string
 }
