@@ -1,5 +1,6 @@
 import type {
   InventoryArticle,
+  InventoryLocal,
   InventoryMovement,
   InventoryMovementFilters,
   InventoryStock,
@@ -42,7 +43,7 @@ export function createMovement(payload: NewInventoryMovement) {
   })
 }
 
-export function getStock(articuloId: string, local: string) {
+export function getStock(articuloId: string, local: InventoryLocal) {
   const params = new URLSearchParams({ articulo_id: articuloId, local })
   return request<InventoryStock>(`/inventory/stock?${params.toString()}`)
 }
