@@ -2,7 +2,13 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from models.inventory import Articulo, ArticuloCreate, Movimiento, MovimientoCreate
+from models.inventory import (
+	Articulo,
+	ArticuloCreate,
+	Local,
+	Movimiento,
+	MovimientoCreate,
+)
 from storage import inventory as storage
 
 
@@ -44,7 +50,7 @@ def create_movement(payload: MovimientoCreate) -> Movimiento:
 @router.get("/movements", response_model=list[Movimiento])
 def list_movements(
 	articulo_id: Optional[str] = None,
-	local: Optional[str] = None,
+	local: Optional[Local] = None,
 ) -> list[Movimiento]:
 	if articulo_id is not None and storage.find_article(articulo_id) is None:
 		raise HTTPException(status_code=404, detail="Artículo no encontrado")
@@ -62,7 +68,7 @@ def get_movement(movement_id: str) -> Movimiento:
 @router.get("/stock")
 def get_stock(
 	articulo_id: str = Query(min_length=1),
-	local: str = Query(min_length=1),
+	local: Local = Query(...),
 ) -> dict[str, object]:
 	article = _find_article(articulo_id)
 	return {
