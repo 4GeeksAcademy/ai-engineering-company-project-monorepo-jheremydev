@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime
 from decimal import Decimal
 
-from models.inventory import ArticuloCreate, MovimientoCreate, TipoMovimiento
+from models.inventory import ArticuloCreate, Local, MovimientoCreate, TipoMovimiento
 from storage import inventory
 
 
@@ -24,7 +24,7 @@ class InventoryStorageTests(unittest.TestCase):
     def register_movement(
         self,
         article_id: str,
-        local: str,
+        local: Local,
         movement_type: TipoMovimiento,
         quantity: Decimal,
     ):
@@ -43,7 +43,7 @@ class InventoryStorageTests(unittest.TestCase):
         article_id = self.create_article()
 
         self.assertEqual(
-            inventory.calculate_stock(article_id, "Brasaland Norte"),
+            inventory.calculate_stock(article_id, Local.LOCAL_01),
             Decimal("0"),
         )
 
@@ -60,36 +60,36 @@ class InventoryStorageTests(unittest.TestCase):
         first_id = self.create_article("Tomate")
         second_id = self.create_article("Lechuga")
         self.register_movement(
-            first_id, "Brasaland Norte", TipoMovimiento.ENTRADA, Decimal("10")
+            first_id, Local.LOCAL_01, TipoMovimiento.ENTRADA, Decimal("10")
         )
         self.register_movement(
-            second_id, "Brasaland Norte", TipoMovimiento.ENTRADA, Decimal("40")
+            second_id, Local.LOCAL_01, TipoMovimiento.ENTRADA, Decimal("40")
         )
         self.register_movement(
-            first_id, "Brasaland Sur", TipoMovimiento.ENTRADA, Decimal("25")
+            first_id, Local.LOCAL_02, TipoMovimiento.ENTRADA, Decimal("25")
         )
 
         self.assertEqual(
-            inventory.calculate_stock(first_id, "Brasaland Norte"), Decimal("10")
+            inventory.calculate_stock(first_id, Local.LOCAL_01), Decimal("10")
         )
         self.assertEqual(
-            inventory.calculate_stock(second_id, "Brasaland Norte"), Decimal("40")
+            inventory.calculate_stock(second_id, Local.LOCAL_01), Decimal("40")
         )
         self.assertEqual(
-            inventory.calculate_stock(first_id, "Brasaland Sur"), Decimal("25")
+            inventory.calculate_stock(first_id, Local.LOCAL_02), Decimal("25")
         )
 
     def test_entries_add_and_exits_subtract_decimal_quantities(self) -> None:
         article_id = self.create_article()
         entry = self.register_movement(
             article_id,
-            "Brasaland Norte",
+            Local.LOCAL_01,
             TipoMovimiento.ENTRADA,
             Decimal("10.75"),
         )
         exit_movement = self.register_movement(
             article_id,
-            "Brasaland Norte",
+            Local.LOCAL_01,
             TipoMovimiento.SALIDA,
             Decimal("2.25"),
         )
@@ -97,7 +97,7 @@ class InventoryStorageTests(unittest.TestCase):
         self.assertEqual(entry.cantidad, Decimal("10.75"))
         self.assertEqual(exit_movement.cantidad, Decimal("2.25"))
         self.assertEqual(
-            inventory.calculate_stock(article_id, "Brasaland Norte"),
+            inventory.calculate_stock(article_id, Local.LOCAL_01),
             Decimal("8.50"),
         )
 
@@ -105,19 +105,19 @@ class InventoryStorageTests(unittest.TestCase):
         article_id = self.create_article()
         self.register_movement(
             article_id,
-            "Brasaland Norte",
+            Local.LOCAL_01,
             TipoMovimiento.AJUSTE,
             Decimal("5.5"),
         )
         self.register_movement(
             article_id,
-            "Brasaland Norte",
+            Local.LOCAL_01,
             TipoMovimiento.AJUSTE,
             Decimal("-1.25"),
         )
 
         self.assertEqual(
-            inventory.calculate_stock(article_id, "Brasaland Norte"),
+            inventory.calculate_stock(article_id, Local.LOCAL_01),
             Decimal("4.25"),
         )
 
@@ -125,20 +125,20 @@ class InventoryStorageTests(unittest.TestCase):
         article_id = self.create_article()
         first_movement = self.register_movement(
             article_id,
-            "Brasaland Norte",
+            Local.LOCAL_01,
             TipoMovimiento.ENTRADA,
             Decimal("3"),
         )
         self.register_movement(
             article_id,
-            "Brasaland Sur",
+            Local.LOCAL_02,
             TipoMovimiento.ENTRADA,
             Decimal("7"),
         )
 
         self.assertEqual(len(inventory.list_movements()), 2)
         self.assertEqual(
-            inventory.list_movements(articulo_id=article_id, local="Brasaland Norte"),
+            inventory.list_movements(articulo_id=article_id, local=Local.LOCAL_01),
             [first_movement],
         )
         self.assertEqual(
@@ -149,7 +149,7 @@ class InventoryStorageTests(unittest.TestCase):
     def test_register_rejects_unknown_article_without_changing_history(self) -> None:
         movement_payload = MovimientoCreate(
             articulo_id="missing-article",
-            local="Brasaland Norte",
+            local=Local.LOCAL_01,
             tipo=TipoMovimiento.ENTRADA,
             cantidad=Decimal("1"),
             autor="operador",
@@ -165,7 +165,7 @@ class InventoryStorageTests(unittest.TestCase):
         article_id = self.create_article()
         self.register_movement(
             article_id,
-            "Brasaland Norte",
+            Local.LOCAL_01,
             TipoMovimiento.ENTRADA,
             Decimal("5.5"),
         )
@@ -179,13 +179,13 @@ class InventoryStorageTests(unittest.TestCase):
                 with self.assertRaises(inventory.NegativeStockError):
                     self.register_movement(
                         article_id,
-                        "Brasaland Norte",
+                        Local.LOCAL_01,
                         movement_type,
                         quantity,
                     )
                 self.assertEqual(inventory.list_movements(), previous_history)
                 self.assertEqual(
-                    inventory.calculate_stock(article_id, "Brasaland Norte"),
+                    inventory.calculate_stock(article_id, Local.LOCAL_01),
                     Decimal("5.5"),
                 )
 
