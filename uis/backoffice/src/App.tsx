@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { createIncident, getIncident, getIncidents, updateIncident } from './api/incidents'
+import InventoryManager from './InventoryManager'
 import { areas, channels, incidentTypes, severities, statuses, type Area, type Incident, type IncidentFilters, type IncidentType, type NewIncident, type Severity, type Status } from '@repo/shared-types'
 import './App.css'
 
 const emptyForm: NewIncident = { canal: channels[0], tipo: incidentTypes[0], severidad: severities[1], area_responsable: areas[0], autor: '' }
 
 function App() {
+  const [activeView, setActiveView] = useState<'incidents' | 'inventory'>('incidents')
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [operationalIncidents, setOperationalIncidents] = useState<Incident[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -72,9 +74,30 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div><p className="eyebrow">Brasaland Digital / Operaciones</p><h1>Centro de incidencias</h1></div>
+        <div><p className="eyebrow">Brasaland Digital / Operaciones</p><h1>{activeView === 'inventory' ? 'Gestor de inventario' : 'Centro de incidencias'}</h1></div>
         <div className="live-status"><span /> API conectada por configuración</div>
       </header>
+      <nav className="domain-tabs" role="tablist" aria-label="Módulos operativos">
+        <button
+          className={`domain-tab ${activeView === 'incidents' ? 'is-active' : ''}`}
+          type="button"
+          role="tab"
+          aria-selected={activeView === 'incidents'}
+          onClick={() => setActiveView('incidents')}
+        >
+          Incidencias
+        </button>
+        <button
+          className={`domain-tab ${activeView === 'inventory' ? 'is-active' : ''}`}
+          type="button"
+          role="tab"
+          aria-selected={activeView === 'inventory'}
+          onClick={() => setActiveView('inventory')}
+        >
+          Inventario
+        </button>
+      </nav>
+      {activeView === 'inventory' ? <InventoryManager /> : <>
       {(error || notice) && <div className={`message ${error ? 'message-error' : 'message-success'}`}>{error || notice}</div>}
       <section className="summary-grid" aria-label="Resumen operativo">
         <div className="summary-lead"><span className="section-kicker">Vista operativa</span><strong>{openIncidents.length}</strong><span>incidencias abiertas en esta consulta</span></div>
@@ -98,6 +121,7 @@ function App() {
         </section>
       </div>
       {selectedId && <IncidentDetailView id={selectedId} onUpdated={() => Promise.all([loadIncidents(), loadOperationalIncidents()]).then(() => undefined)} onClose={() => setSelectedId(null)} setError={setError} />}
+      </>}
     </main>
   )
 }
