@@ -18,7 +18,7 @@ def assert_status(response: Any, expected: int) -> None:
 def movement_payload(article_id: str, **overrides: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "articulo_id": article_id,
-        "local": "Brasaland Norte",
+        "local": "Local 01",
         "tipo": "entrada",
         "cantidad": 4.5,
         "autor": "verify-inventory",
@@ -55,7 +55,7 @@ def run_verification(client: TestClient) -> tuple[list[str], list[str]]:
     def get_stock(article_id: str) -> dict[str, Any]:
         response = client.get(
             "/inventory/stock",
-            params={"articulo_id": article_id, "local": "Brasaland Norte"},
+            params={"articulo_id": article_id, "local": "Local 01"},
         )
         assert_status(response, 200)
         return response.json()
@@ -63,7 +63,7 @@ def run_verification(client: TestClient) -> tuple[list[str], list[str]]:
     def get_history(article_id: str) -> list[dict[str, Any]]:
         response = client.get(
             "/inventory/movements",
-            params={"articulo_id": article_id, "local": "Brasaland Norte"},
+            params={"articulo_id": article_id, "local": "Local 01"},
         )
         assert_status(response, 200)
         return response.json()
@@ -194,6 +194,28 @@ def run_verification(client: TestClient) -> tuple[list[str], list[str]]:
         assert_status(response, 422)
 
     run_stage("rechazar categoría inválida (422)", reject_invalid_category)
+
+    def reject_invalid_unit() -> None:
+        response = client.post(
+            "/inventory/articles",
+            json={
+                "nombre": "Artículo con unidad inválida",
+                "categoria": "verduras",
+                "unidad_medida": "kilogramo",
+            },
+        )
+        assert_status(response, 422)
+
+    run_stage("rechazar unidad fuera del catálogo (422)", reject_invalid_unit)
+
+    def reject_invalid_local() -> None:
+        response = client.post(
+            "/inventory/movements",
+            json=movement_payload(require_state("article_id"), local="Norte"),
+        )
+        assert_status(response, 422)
+
+    run_stage("rechazar local fuera del catálogo (422)", reject_invalid_local)
 
     return passed, failed
 
