@@ -34,6 +34,7 @@ Las convenciones y el contexto ya documentado se encuentran en `memory-bank/`.
 - **INV-018 (Comportamiento no deseado):** Si falta el autor o la fecha al registrar un movimiento, el sistema rechaza el registro y no modifica el stock calculado.
 - **INV-019 (Opcional):** Si se proporciona un motivo o una nota al registrar un movimiento, el sistema conserva ese dato con el movimiento; su ausencia no impide el registro.
 - **INV-020 (Comportamiento no deseado):** Si se intenta editar o eliminar un movimiento ya registrado, el sistema rechaza la operación y conserva el historial y el stock calculado a partir de él.
+- **INV-021 (Ubicuo):** El local es un identificador de texto libre (no un catálogo cerrado en este módulo), ya que Brasaland opera 14 locales cuyos nombres o códigos no están enumerados en CONTEXT.md ni en company-choice.md.
 
 ## Preguntas abiertas / decisiones pendientes
 
