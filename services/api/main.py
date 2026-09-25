@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import incidents
+from routers import incidents, inventory
 
 app = FastAPI(
     title="Brasaland Central API",
@@ -17,6 +17,7 @@ app.add_middleware(
 )
 
 app.include_router(incidents.router)
+app.include_router(inventory.router)
 
 
 @app.get("/health", tags=["health"])
