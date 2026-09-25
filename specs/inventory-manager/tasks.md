@@ -155,3 +155,85 @@ Cada TASK debe completarse y verificarse en su propio commit antes de iniciar la
 - **Qué hacer:** Usar un local del catálogo, como `Local 01`, en los ejemplos del flujo y agregar un paso que intente registrar una unidad de medida y un local fuera de catálogo; documentar la expectativa de `422` para ambos.
 - **Cómo verificar:** Seguir el checklist actualizado con API y backoffice activos. Confirmar que el flujo válido usa valores de catálogo y que los dos intentos inválidos reciben `422` sin modificar stock ni historial.
 - **Commit sugerido:** `docs: verify closed catalogs in inventory E2E checklist`
+
+## Cambio de requisito: local como catálogo gestionable
+
+### CR2-01: Modelar Local como entidad gestionada
+
+- **Criterios EARS:** INV-021, INV-023, INV-024, INV-025.
+- **Amplía:** CR-01 y TASK-01.
+- **Plan:** §1 Modelo de datos.
+- **Archivos que toca:** `services/api/models/inventory.py`; `services/api/tests/test_inventory_models.py`.
+- **Qué hacer:** Quitar el enum `Local`; agregar `LocalCreate` con `nombre: TextoNoVacio` y `Local` extendiendo `LocalCreate` con `id: str`, siguiendo el patrón `ArticuloCreate`/`Articulo`. Cambiar `MovimientoCreate.local` a `TextoNoVacio` como referencia por identificador y eliminar pruebas de rechazo por local desconocido a nivel de modelo; adaptar los payloads que usaban el enum.
+- **Cómo verificar:** Desde `services/api/`, ejecutar `python -m unittest discover -s tests -p "test_inventory_models.py"`. Confirmar que `LocalCreate` rechaza nombre ausente o vacío, que `Local` requiere ID y que `MovimientoCreate.local` acepta una referencia string.
+- **Commit sugerido:** `feat(inventory): model local as managed entity`
+
+### CR2-02: Gestionar locales en storage
+
+- **Criterios EARS:** INV-021, INV-023, INV-024, INV-025.
+- **Amplía:** CR-02 y TASK-02.
+- **Plan:** §3 Almacenamiento.
+- **Archivos que toca:** `services/api/storage/inventory.py`; `services/api/tests/test_inventory_storage.py`.
+- **Qué hacer:** Agregar `locales: list[Local]`, las operaciones `create_local`, `list_locals` y `find_local`, y `LocalNotFoundError`. En `register_movement`, validar la existencia del artículo y del local mediante sus funciones de búsqueda antes de añadir el movimiento. Actualizar las pruebas para crear locales con `create_local` y probar que un local inexistente lanza `LocalNotFoundError` sin mutar el historial.
+- **Cómo verificar:** Desde `services/api/`, ejecutar `python -m unittest discover -s tests -p "test_inventory_storage.py"`. Comprobar creación/listado/búsqueda de locales, aislamiento con IDs distintos y que artículo/local inexistentes no anexan movimientos.
+- **Commit sugerido:** `feat(inventory): manage locals in memory storage`
+
+### CR2-03: Endpoints de catálogo de locales
+
+- **Criterios EARS:** INV-021, INV-023, INV-024, INV-025.
+- **Amplía:** CR-03 y TASK-03.
+- **Plan:** §4 Endpoints.
+- **Archivos que toca:** `services/api/routers/inventory.py`.
+- **Qué hacer:** Agregar `POST /inventory/locals` (`201`) y `GET /inventory/locals` (`200`) delegando a storage; el POST rechaza con `422` un nombre ausente o vacío. Cambiar `local` de `create_movement`, `list_movements` y `get_stock` a `str`; convertir `LocalNotFoundError` en `404` al crear movimiento y validar con `storage.find_local` las referencias recibidas por los endpoints de listado filtrado y stock antes de continuar. Mantener `articulo_id` como `str`.
+- **Cómo verificar:** Desde `services/api/`, ejecutar `python -m compileall -q routers/inventory.py main.py` y comprobar `/docs`: creación/listado de locales y referencias `local` como string. Con `TestClient` o `/docs`, verificar `201`/`200` para operaciones de locales, `422` para crear un local sin nombre, `404` para ID de local inexistente en creación de movimiento, filtro e inventario, y los comportamientos válidos con un ID existente.
+- **Commit sugerido:** `feat(inventory): expose managed local endpoints`
+
+### CR2-04: Verificar flujo con local creado
+
+- **Criterios EARS:** INV-021, INV-023, INV-024.
+- **Amplía:** CR-04 y TASK-04.
+- **Plan:** §4 Endpoints.
+- **Archivos que toca:** `services/api/verify_inventory.py`.
+- **Qué hacer:** Añadir al comienzo de `run_verification` una etapa que cree un local válido mediante `POST /inventory/locals`, compruebe `201` y guarde su ID; usar ese ID en todas las etapas restantes en lugar de `Local 01`. Reemplazar la etapa de local inválido `422` por una que intente registrar un movimiento con ID de local inexistente y confirme `404`.
+- **Cómo verificar:** Desde `services/api/`, ejecutar `python verify_inventory.py` dos veces consecutivas. Ambas corridas deben reportar todas las etapas `OK`, validar creación del local y `404` para la referencia inexistente, con cero fallos.
+- **Commit sugerido:** `test(inventory): verify managed local workflow`
+
+### CR2-05: Tipos compartidos para Local gestionado
+
+- **Criterios EARS:** INV-021, INV-023, INV-024, INV-025.
+- **Amplía:** CR-05 y TASK-05.
+- **Plan:** §5 Tipos compartidos.
+- **Archivos que toca:** `packages/shared/types/inventory.ts`.
+- **Qué hacer:** Quitar `inventoryLocals`/`InventoryLocal`; agregar `InventoryLocation` (`id`, `nombre`) y `NewInventoryLocation` (`nombre`). Cambiar `local` en `InventoryMovement`, `NewInventoryMovement`, `InventoryMovementFilters` e `InventoryStock` de `InventoryLocal` a `string`, como referencia por ID.
+- **Cómo verificar:** Desde la raíz, ejecutar `npm run build --workspace backoffice`. Confirmar que los tipos de locales gestionados se exportan desde el paquete compartido y que los campos `local` permiten representar IDs string.
+- **Commit sugerido:** `feat(shared-types): model managed inventory locations`
+
+### CR2-06: Cliente API para Local gestionado
+
+- **Criterios EARS:** INV-021, INV-023, INV-024, INV-025.
+- **Amplía:** CR-06 y TASK-06.
+- **Plan:** §5 Tipos compartidos; §6 Cliente API frontend.
+- **Archivos que toca:** `uis/backoffice/src/api/inventory.ts`.
+- **Qué hacer:** Agregar `getLocals()` y `createLocal(payload)` siguiendo el patrón de `getArticles()`/`createArticle()`, usando `InventoryLocation` y `NewInventoryLocation`. Usar `string` para el ID de local que reciben `getStock` y `getMovements` mediante `InventoryMovementFilters`.
+- **Cómo verificar:** Desde la raíz, ejecutar `npm run build --workspace backoffice` y `npm run lint --workspace backoffice`; ambos deben terminar sin errores.
+- **Commit sugerido:** `feat(backoffice): add managed local API client`
+
+### CR2-07: UI para registrar y seleccionar locales
+
+- **Criterios EARS:** INV-021, INV-023, INV-024, INV-025.
+- **Amplía:** CR-07 y TASK-07.
+- **Plan:** §5 Tipos compartidos; §6 Cliente API frontend; §7 Fuera de este plan.
+- **Archivos que toca:** `uis/backoffice/src/InventoryManager.tsx`.
+- **Qué hacer:** Agregar un formulario compacto para crear un local proporcionando solo su nombre y cargar locales con `getLocals()` al montar el componente, junto al catálogo de artículos. Reemplazar los selects fijos de local en el formulario de movimientos y consulta de stock por selects poblados dinámicamente, mostrando el nombre y usando el ID como `value`.
+- **Cómo verificar:** Desde la raíz, ejecutar `npm run build --workspace backoffice` y `npm run lint --workspace backoffice`. Con API/backoffice activos, crear un local en la UI, confirmar que aparece en ambos selectores y usarlo para registrar un movimiento y consultar stock.
+- **Commit sugerido:** `feat(backoffice): manage and select inventory locals`
+
+### CR2-08: Actualizar verificación E2E para locales gestionados
+
+- **Criterios EARS:** INV-021, INV-023, INV-024.
+- **Amplía:** CR-08 y TASK-08.
+- **Plan:** §4 Endpoints; §6 Cliente API frontend.
+- **Archivos que toca:** `specs/inventory-manager/e2e-checklist.md`.
+- **Qué hacer:** Agregar al inicio del recorrido la creación de un local desde la UI y utilizar ese local en el flujo válido. Reemplazar la comprobación de local fuera de catálogo por un movimiento con un ID de local inventado enviado directamente a la API, con expectativa `404`, ya que la UI no permite escribir IDs manualmente.
+- **Cómo verificar:** Seguir el checklist con API y backoffice activos. Confirmar que se crea y selecciona el local, que el flujo válido refleja el stock esperado y que el intento con ID inexistente devuelve `404` sin alterar saldo ni historial.
+- **Commit sugerido:** `docs: verify managed local catalog end to end`
