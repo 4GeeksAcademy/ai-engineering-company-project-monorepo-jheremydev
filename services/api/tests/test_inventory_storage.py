@@ -23,6 +23,7 @@ class InventoryStorageTests(unittest.TestCase):
                 nombre=name,
                 categoria="verduras",
                 unidad_medida="kg",
+                punto_reorden=Decimal("5.5"),
             )
         )
         return article.id
