@@ -6,3 +6,5 @@ Cada subcarpeta dentro de `services/` debe corresponder a **un servicio concreto
 
 - **Propósito principal**: centralizar toda la lógica backend, APIs y consumidores de colas que dan soporte a los casos de uso de la compañía.
 - **Recomendación**: documenta en este archivo (o en sub-READMEs) los servicios que vayas añadiendo, su objetivo, tecnología usada y cómo ejecutarlos.
+
+Para desarrollo local, ejecuta `docker compose up` desde la raíz del repositorio. FastAPI queda disponible en el puerto 8000, con el código montado y recarga de Uvicorn habilitada.

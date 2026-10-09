@@ -13,3 +13,5 @@ Organiza `uis/` por **distintas áreas de la compañía** — cada subcarpeta ag
 - **Recomendación**: documenta en este archivo (o en sub-READMEs) las aplicaciones que vayas añadiendo, su objetivo, tecnología usada y cómo ejecutarlas.
 
 > _These instructions are also available in [English](./README.md)._
+
+Para desarrollo local, ejecuta `docker compose up` desde la raíz del repositorio. El sitio queda disponible en el puerto 5174 y el backoffice en el 5173; el código fuente se monta para permitir hot reload.

@@ -1,8 +1,6 @@
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? ''
 
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  if (!apiBaseUrl) throw new Error('Falta configurar VITE_API_BASE_URL.')
-
   const response = await fetch(`${apiBaseUrl}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
