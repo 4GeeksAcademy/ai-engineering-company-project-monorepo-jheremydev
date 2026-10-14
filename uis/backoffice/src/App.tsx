@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { createIncident, getIncident, getIncidents, updateIncident } from './api/incidents'
 import InventoryManager from './InventoryManager'
+import { formatDate } from './utils/formatDate'
 import { areas, channels, incidentTypes, severities, statuses, type Area, type Incident, type IncidentFilters, type IncidentType, type NewIncident, type Severity, type Status } from '@repo/shared-types'
 
 const emptyForm: NewIncident = { canal: channels[0], tipo: incidentTypes[0], severidad: severities[1], area_responsable: areas[0], autor: '' }
@@ -160,10 +161,6 @@ function IncidentDetailView({ id, onUpdated, onClose, setError }: { id: string; 
   }
 
   return <div className="detail-backdrop" role="presentation" onClick={onClose}><aside className="detail-drawer" onClick={(event) => event.stopPropagation()}>{!detail ? <p className="empty-state">Cargando detalle...</p> : <><div className="drawer-header"><div><span className="section-kicker">Ficha de incidencia</span><h2>{detail.incidencia.tipo}</h2></div><button className="close-button" type="button" onClick={onClose} aria-label="Cerrar detalle">×</button></div><div className="detail-meta"><span className={`badge badge-${detail.incidencia.severidad.toLowerCase()}`}>{detail.incidencia.severidad}</span><span>{detail.incidencia.canal}</span><span>{detail.incidencia.autor}</span></div><dl className="detail-grid"><div><dt>ID</dt><dd>{detail.incidencia.id}</dd></div><div><dt>Creada</dt><dd>{formatDate(detail.incidencia.created_at)}</dd></div><div><dt>Área</dt><dd>{detail.incidencia.area_responsable}</dd></div><div><dt>Actualizada</dt><dd>{formatDate(detail.incidencia.updated_at)}</dd></div></dl><form className="update-form" onSubmit={saveChanges}><span className="section-kicker">Actualizar seguimiento</span><div className="field-row"><SelectField label="Estado" value={status} options={statuses} onChange={(value) => setStatus(value as Status)} /><SelectField label="Área responsable" value={area} options={areas} onChange={(value) => setArea(value as Area)} /></div><label className="field"><span>Autor del cambio</span><input required value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="Quién realiza el cambio" /></label><button className="primary-button" type="submit" disabled={saving}>{saving ? 'Actualizando...' : 'Guardar cambios'} <span>→</span></button></form><div className="history"><div className="history-title"><span className="section-kicker">Trazabilidad</span><strong>{detail.historial.length} cambios</strong></div>{detail.historial.length === 0 ? <p className="empty-state">Sin cambios registrados.</p> : detail.historial.map((change) => <div className="history-item" key={change.id}><span className="history-field">{change.campo}</span><p><strong>{change.valor_anterior}</strong> <span>→</span> {change.valor_nuevo}</p><small>{change.autor} · {formatDate(change.timestamp)}</small></div>)}</div></>}</aside></div>
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
 export default App

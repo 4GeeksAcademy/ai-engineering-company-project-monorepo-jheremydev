@@ -23,6 +23,7 @@ import {
   getMovements,
   getStock,
 } from './api/inventory'
+import { formatDate } from './utils/formatDate'
 
 type MovementFormState = Omit<NewInventoryMovement, 'articulo_id'>
 
@@ -50,15 +51,6 @@ const createEmptyMovementForm = (): MovementFormState => ({
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
-}
-
-function formatDate(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('es-CO', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date)
 }
 
 function InventoryManager() {
