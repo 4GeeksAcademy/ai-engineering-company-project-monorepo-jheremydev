@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { createIncident, getIncident, getIncidents, updateIncident } from './api/incidents'
 import InventoryManager from './InventoryManager'
+import SelectField from './components/SelectField'
 import { formatDate } from './utils/formatDate'
 import { areas, channels, incidentTypes, severities, statuses, type Area, type Incident, type IncidentFilters, type IncidentType, type NewIncident, type Severity, type Status } from '@repo/shared-types'
 
@@ -124,10 +125,6 @@ function App() {
       </>}
     </main>
   )
-}
-
-function SelectField<T extends string>({ label, value, options, onChange }: { label: string; value: T | ''; options: readonly T[]; onChange: (value: string) => void }) {
-  return <label className="field"><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
 }
 
 function FilterSelect<T extends string>({ label, value, options, onChange }: { label: string; value: string; options: readonly T[]; onChange: (value: string) => void }) {

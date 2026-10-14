@@ -24,6 +24,7 @@ import {
   getStock,
 } from './api/inventory'
 import { formatDate } from './utils/formatDate'
+import SelectField from './components/SelectField'
 
 type MovementFormState = Omit<NewInventoryMovement, 'articulo_id'>
 
@@ -267,34 +268,24 @@ function InventoryManager() {
                   onChange={(event) => setArticleForm({ ...articleForm, nombre: event.target.value })}
                 />
               </label>
-              <label className="field">
-                <span>Categoría</span>
-                <select
-                  value={articleForm.categoria}
-                  onChange={(event) => setArticleForm({
-                    ...articleForm,
-                    categoria: event.target.value as InventoryCategory,
-                  })}
-                >
-                  {inventoryCategories.map((category) => (
-                    <option key={category} value={category}>{category}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Unidad de medida</span>
-                <select
-                  value={articleForm.unidad_medida}
-                  onChange={(event) => setArticleForm({
-                    ...articleForm,
-                    unidad_medida: event.target.value as InventoryUnit,
-                  })}
-                >
-                  {inventoryUnits.map((unit) => (
-                    <option key={unit} value={unit}>{unit}</option>
-                  ))}
-                </select>
-              </label>
+              <SelectField
+                label="Categoría"
+                value={articleForm.categoria}
+                options={inventoryCategories}
+                onChange={(value) => setArticleForm({
+                  ...articleForm,
+                  categoria: value as InventoryCategory,
+                })}
+              />
+              <SelectField
+                label="Unidad de medida"
+                value={articleForm.unidad_medida}
+                options={inventoryUnits}
+                onChange={(value) => setArticleForm({
+                  ...articleForm,
+                  unidad_medida: value as InventoryUnit,
+                })}
+              />
               <label className="field">
                 <span>Punto de reorden</span>
                 <input
@@ -387,52 +378,37 @@ function InventoryManager() {
               <span className="step-mark">02</span>
             </div>
             <form onSubmit={handleCreateMovement}>
-              <label className="field">
-                <span>Artículo</span>
-                <select
-                  required
-                  value={selectedArticleId}
-                  disabled={articles.length === 0}
-                  onChange={(event) => setSelectedArticleId(event.target.value)}
-                >
-                  <option value="">Seleccionar artículo</option>
-                  {articles.map((article) => (
-                    <option key={article.id} value={article.id}>{article.nombre}</option>
-                  ))}
-                </select>
-              </label>
+              <SelectField
+                label="Artículo"
+                required
+                value={selectedArticleId}
+                disabled={articles.length === 0}
+                placeholder="Seleccionar artículo"
+                options={articles.map((article) => ({ value: article.id, label: article.nombre }))}
+                onChange={(value) => setSelectedArticleId(value)}
+              />
               <div className="field-row">
-                <label className="field">
-                  <span>Local</span>
-                  <select
-                    required
-                    value={movementForm.local}
-                    disabled={locations.length === 0}
-                    onChange={(event) => setMovementForm({
-                      ...movementForm,
-                      local: event.target.value,
-                    })}
-                  >
-                    <option value="">Seleccionar local</option>
-                    {locations.map((location) => (
-                      <option key={location.id} value={location.id}>{location.nombre}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Tipo</span>
-                  <select
-                    value={movementForm.tipo}
-                    onChange={(event) => setMovementForm({
-                      ...movementForm,
-                      tipo: event.target.value as MovementType,
-                    })}
-                  >
-                    {movementTypes.map((type) => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </label>
+                <SelectField
+                  label="Local"
+                  required
+                  value={movementForm.local}
+                  disabled={locations.length === 0}
+                  placeholder="Seleccionar local"
+                  options={locations.map((location) => ({ value: location.id, label: location.nombre }))}
+                  onChange={(value) => setMovementForm({
+                    ...movementForm,
+                    local: value,
+                  })}
+                />
+                <SelectField
+                  label="Tipo"
+                  value={movementForm.tipo}
+                  options={movementTypes}
+                  onChange={(value) => setMovementForm({
+                    ...movementForm,
+                    tipo: value as MovementType,
+                  })}
+                />
               </div>
               <div className="field-row">
                 <label className="field">
