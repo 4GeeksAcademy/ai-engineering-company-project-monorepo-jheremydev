@@ -1,0 +1,40 @@
+services:
+  interfaces:
+    build:
+      context: ./uis
+      dockerfile: Dockerfile
+      additional_contexts:
+        monorepo: .
+    env_file:
+      - .env
+    ports:
+      - "${BACKOFFICE_PORT}:${BACKOFFICE_PORT}"
+      - "${WEBSITE_PORT}:${WEBSITE_PORT}"
+    volumes:
+      - ./uis/website:/workspace/uis/website
+      - ./uis/backoffice:/workspace/uis/backoffice
+      - ./packages/shared:/workspace/packages/shared
+    networks:
+      - brasaland-dev
+
+  api:
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    command:
+      - sh
+      - -c
+      - uvicorn main:app --host 0.0.0.0 --port "$${API_PORT}" --reload
+    ports:
+      - "${API_PORT}:${API_PORT}"
+    volumes:
+      - ./services/api:/app/services/api
+    networks:
+      - brasaland-dev
+
+networks:
+  brasaland-dev:
+    name: brasaland-dev
+    driver: bridge

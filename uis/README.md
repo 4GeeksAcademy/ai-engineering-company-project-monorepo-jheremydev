@@ -13,3 +13,5 @@ Organize `uis/` by **different concerns** — each subfolder covers a distinct a
 - **Recommendation**: document in this file (or in sub-READMEs) the applications you add, their objective, the technology used, and how to run them.
 
 > _Estas instrucciones también están disponibles en [español](./README.es.md)._
+
+For local development, run `docker compose up` from the repository root. The website is available on port 5174 and the backoffice on port 5173; source files are bind-mounted for hot reload.
