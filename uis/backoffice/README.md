@@ -36,6 +36,10 @@ Vite mostrara la URL local del backoffice en la terminal.
 
 La aplicacion se conectara a la API FastAPI centralizada de `services/api/`. La URL base se configura mediante `VITE_API_BASE_URL`; no debe hardcodearse en el codigo fuente.
 
+## Componentes compartidos
+
+`src/components/SelectField.tsx` reutiliza los selectores con la clase `field` en incidencias e inventario. Acepta opciones de texto o `{ value, label }` y props opcionales `placeholder`, `required` y `disabled` para conservar los nombres visibles, IDs y validaciones de los formularios.
+
 ## Scripts
 
 - `npm run dev`: inicia el servidor de desarrollo.

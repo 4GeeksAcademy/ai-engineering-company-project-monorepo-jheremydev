@@ -5,7 +5,6 @@ import Section from './components/Section'
 import Departments from './components/Departments'
 import Locations from './components/Locations'
 import Footer from './components/Footer'
-import './App.css'
 
 function App() {
   return (
