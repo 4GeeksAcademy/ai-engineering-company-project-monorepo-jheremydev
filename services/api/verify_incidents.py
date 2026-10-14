@@ -3,7 +3,7 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-import storage
+from storage import incidents as storage
 from main import app
 
 
