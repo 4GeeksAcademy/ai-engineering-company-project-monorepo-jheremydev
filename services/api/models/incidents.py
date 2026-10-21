@@ -68,3 +68,34 @@ class HistorialCambio(BaseModel):
     valor_nuevo: str
     autor: str
     timestamp: datetime
+
+
+class IncidenciaResumen(BaseModel):
+    id: str
+    canal: Canal
+    tipo: TipoIncidencia
+    severidad: Severidad
+    area_responsable: AreaResponsable
+    estado: EstadoIncidencia
+    autor: str
+
+
+class HistorialItemResponse(BaseModel):
+    id: str
+    campo: Literal["estado", "area_responsable"]
+    valor_anterior: str
+    valor_nuevo: str
+    autor: str
+    timestamp: datetime
+
+
+class IncidenciaDetalle(BaseModel):
+    incidencia: Incidencia
+    historial: list[HistorialItemResponse]
+
+
+class IncidenciaUpdateConfirmacion(BaseModel):
+    id: str
+    estado: EstadoIncidencia
+    area_responsable: AreaResponsable
+    updated_at: datetime

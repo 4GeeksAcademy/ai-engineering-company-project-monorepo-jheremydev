@@ -1,4 +1,6 @@
-from typing import Optional
+from threading import Lock
+from time import monotonic
+from typing import Callable, Generic, Optional, TypeVar
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -9,31 +11,72 @@ from models.inventory import (
 	LocalCreate,
 	Movimiento,
 	MovimientoCreate,
+	StockResponse,
 )
 from storage import inventory as storage
 
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
+ARTICLES_CACHE_TTL_SECONDS = 300
+LOCALS_CACHE_TTL_SECONDS = 900
+
+T = TypeVar("T")
+
+
+class _TTLCache(Generic[T]):
+	def __init__(self, ttl_seconds: int) -> None:
+		self._ttl_seconds = ttl_seconds
+		self._entry: Optional[tuple[float, T]] = None
+		self._generation = 0
+		self._lock = Lock()
+
+	def get_or_load(self, loader: Callable[[], T]) -> T:
+		with self._lock:
+			now = monotonic()
+			if self._entry is not None and self._entry[0] > now:
+				return self._entry[1]
+			generation = self._generation
+
+		value = loader()
+
+		with self._lock:
+			if generation == self._generation:
+				self._entry = (monotonic() + self._ttl_seconds, value)
+		return value
+
+	def invalidate(self) -> None:
+		with self._lock:
+			self._generation += 1
+			self._entry = None
+
+
+_articles_cache: _TTLCache[list[Articulo]] = _TTLCache(ARTICLES_CACHE_TTL_SECONDS)
+_locals_cache: _TTLCache[list[Local]] = _TTLCache(LOCALS_CACHE_TTL_SECONDS)
+
 
 @router.post("/locals", response_model=Local, status_code=201)
 def create_local(payload: LocalCreate) -> Local:
-	return storage.create_local(payload)
+	local = storage.create_local(payload)
+	_locals_cache.invalidate()
+	return local
 
 
 @router.get("/locals", response_model=list[Local])
 def list_locals() -> list[Local]:
-	return storage.list_locals()
+	return _locals_cache.get_or_load(storage.list_locals)
 
 
 @router.post("/articles", response_model=Articulo, status_code=201)
 def create_article(payload: ArticuloCreate) -> Articulo:
-	return storage.create_article(payload)
+	article = storage.create_article(payload)
+	_articles_cache.invalidate()
+	return article
 
 
 @router.get("/articles", response_model=list[Articulo])
 def list_articles() -> list[Articulo]:
-	return storage.list_articles()
+	return _articles_cache.get_or_load(storage.list_articles)
 
 
 def _find_article(article_id: str) -> Articulo:
@@ -80,20 +123,20 @@ def get_movement(movement_id: str) -> Movimiento:
 	return movement
 
 
-@router.get("/stock")
+@router.get("/stock", response_model=StockResponse)
 def get_stock(
 	articulo_id: str = Query(min_length=1),
 	local: str = Query(min_length=1),
-) -> dict[str, object]:
+) -> StockResponse:
 	article = _find_article(articulo_id)
 	if storage.find_local(local) is None:
 		raise HTTPException(status_code=404, detail="Local no encontrado")
 	stock = storage.calculate_stock(article.id, local)
-	return {
-		"articulo_id": article.id,
-		"local": local,
-		"stock": stock,
-		"unidad_medida": article.unidad_medida,
-		"punto_reorden": article.punto_reorden,
-		"bajo_punto_reorden": stock < article.punto_reorden,
-	}
+	return StockResponse(
+		articulo_id=article.id,
+		local=local,
+		stock=stock,
+		unidad_medida=article.unidad_medida.value,
+		punto_reorden=article.punto_reorden,
+		bajo_punto_reorden=stock < article.punto_reorden,
+	)
