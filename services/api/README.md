@@ -35,6 +35,12 @@ La API estará disponible en `http://127.0.0.1:8000`.
 Cada petición registra en el log de Uvicorn el método, la ruta FastAPI, el
 código HTTP y `duration_ms`.
 
+Los catálogos `GET /inventory/articles` y `GET /inventory/locals` usan caché
+en memoria con TTL de 300 y 900 segundos, respectivamente. Crear un artículo
+o un local invalida inmediatamente su catálogo. La caché es local al proceso
+de la API; si se ejecutan varios workers o réplicas, se necesitará una
+estrategia compartida de caché e invalidación.
+
 Para cargar datos variados en una API local recién iniciada y vacía:
 
 ```bash

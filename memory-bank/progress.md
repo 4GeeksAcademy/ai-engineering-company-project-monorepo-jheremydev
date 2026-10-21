@@ -10,7 +10,7 @@ _Actualizar cada vez que el proyecto evolucione: nuevas decisiones, features com
 | Gestor de inventario | Implementado, tests en verde, 29 criterios EARS verificados | `feature/inventory-manager` (sale de `incident-manager`) | #2, abierto, marcado "Ready to merge" |
 | Infraestructura de agentes (banco de memoria, `AGENTS.md`, `.agents/rules`, `.agents/skills`) | En curso — este desarrollo | `feature/agent-memory-bank` (sale de `inventory-manager`) | pendiente de abrir |
 | Auditoría de serialización de API | Implementadas y verificadas mejoras de respuesta para health, incidencias y stock | `feature/serialization-audit` (desde `main`) | — |
-| Auditoría de rendimiento/caching (fase 1) | Middleware, seed y mediciones completados; candidatos documentados, sin optimizaciones funcionales | `feature/caching-optimisation` | — |
+| Optimización de rendimiento/caching | Fase 2 implementa TTL e invalidación en catálogos, lazy loading de inventario/detalle y Map memoizado; verificación documentada | `feature/caching-optimisation` | — |
 | `uis/website` (web corporativa pública) | Construida; pendiente de verificación en ejecución | `feature/agent-memory-bank` | — |
 | `uis/backoffice` | Funcional: pestañas de Incidencias e Inventario, ambas consumiendo la API real | ya en `inventory-manager` | — |
 
@@ -22,6 +22,7 @@ _Actualizar cada vez que el proyecto evolucione: nuevas decisiones, features com
 
 - API FastAPI centralizada en `services/api`, con routers y storage separados por dominio (incidencias, inventario). Almacenamiento en memoria — sin base de datos todavía.
 - `uis/backoffice`: React+Vite+TS, con navegación por pestañas entre Incidencias e Inventario, formularios de alta, filtros, detalle con historial de cambios (incidencias) y gestión de stock/locales/punto de reorden (inventario).
+- `feature/caching-optimisation`: catálogos de artículos/locales cacheados por proceso con TTL e invalidación al crear; la entrada del backoffice difiere los módulos de inventario y detalle de incidencia.
 - Banco de memoria con contexto de negocio y arquitectura, reglas de agente documentadas en `.agents/rules/`.
 
 ## Pendiente / próximos pasos
@@ -38,3 +39,4 @@ _Actualizar cada vez que el proyecto evolucione: nuevas decisiones, features com
 
 - Al abrir el PR de inventario se creó por error contra el repo de la organización (`ai-engineering-company-project-monorepo`, sin sufijo) en vez del fork personal (`...-jheremydev`). Corregido reabriendo el PR en el repo correcto.
 - `memory-bank/current-state.md` (heredado de la fase de incidencias) decía "todavía no existe implementación funcional" — quedó desactualizado en cuanto se completaron incidencias e inventario. Este `progress.md` lo sustituye como fuente de estado actual.
+- La verificación interactiva desde el origen `127.0.0.1:5173` no puede consultar la API configurada en `localhost:8000` por la allowlist CORS existente; se documentó sin modificar configuración fuera del alcance.

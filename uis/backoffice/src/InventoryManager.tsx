@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   inventoryCategories,
@@ -77,6 +77,10 @@ function InventoryManager() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
+  const articlesById = useMemo(
+    () => new Map(articles.map((article) => [article.id, article])),
+    [articles],
+  )
   const reorderQueryKey = `${stockLocal}:${articles.map((article) => article.id).join(',')}`
 
   useEffect(() => {
@@ -556,7 +560,7 @@ function InventoryManager() {
                     {movements.map((movement) => (
                       <tr key={movement.id}>
                         <td className="strong-cell">
-                          {articles.find((article) => article.id === movement.articulo_id)?.nombre ?? movement.articulo_id}
+                          {articlesById.get(movement.articulo_id)?.nombre ?? movement.articulo_id}
                         </td>
                         <td>{movement.local}</td>
                         <td>{movement.tipo}</td>
