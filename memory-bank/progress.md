@@ -9,6 +9,7 @@ _Actualizar cada vez que el proyecto evolucione: nuevas decisiones, features com
 | Gestor de incidencias | Implementado, tests en verde | `feature/incident-manager` | #1, abierto (sin mergear) |
 | Gestor de inventario | Implementado, tests en verde, 29 criterios EARS verificados | `feature/inventory-manager` (sale de `incident-manager`) | #2, abierto, marcado "Ready to merge" |
 | Infraestructura de agentes (banco de memoria, `AGENTS.md`, `.agents/rules`, `.agents/skills`) | En curso — este desarrollo | `feature/agent-memory-bank` (sale de `inventory-manager`) | pendiente de abrir |
+| Auditoría de serialización de API | Auditada y documentada; sin cambios de código | `feature/serialization-audit` (desde `main`) | — |
 | `uis/website` (web corporativa pública) | Construida; pendiente de verificación en ejecución | `feature/agent-memory-bank` | — |
 | `uis/backoffice` | Funcional: pestañas de Incidencias e Inventario, ambas consumiendo la API real | ya en `inventory-manager` | — |
 
