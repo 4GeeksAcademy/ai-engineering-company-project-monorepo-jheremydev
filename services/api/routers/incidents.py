@@ -10,7 +10,11 @@ from models.incidents import (
 	Canal,
 	EstadoIncidencia,
 	HistorialCambio,
+	HistorialItemResponse,
 	Incidencia,
+	IncidenciaDetalle,
+	IncidenciaResumen,
+	IncidenciaUpdateConfirmacion,
 	Severidad,
 	TipoIncidencia,
 )
@@ -51,14 +55,22 @@ def create_incident(payload: IncidenciaCreate) -> Incidencia:
 	return incident
 
 
-@router.get("", response_model=list[Incidencia])
+@router.get("", response_model=list[IncidenciaResumen])
 def list_incidents(
 	estado: Optional[EstadoIncidencia] = None,
 	severidad: Optional[Severidad] = None,
 	area_responsable: Optional[AreaResponsable] = None,
-) -> list[Incidencia]:
+) -> list[IncidenciaResumen]:
 	return [
-		incident
+		IncidenciaResumen(
+			id=incident.id,
+			canal=incident.canal,
+			tipo=incident.tipo,
+			severidad=incident.severidad,
+			area_responsable=incident.area_responsable,
+			estado=incident.estado,
+			autor=incident.autor,
+		)
 		for incident in storage.incidencias
 		if (estado is None or incident.estado == estado)
 		and (severidad is None or incident.severidad == severidad)
@@ -76,8 +88,8 @@ def _find_incident(incidencia_id: str) -> Incidencia:
 	raise HTTPException(status_code=404, detail="Incidencia no encontrada")
 
 
-@router.get("/{incidencia_id}")
-def get_incident(incidencia_id: str):
+@router.get("/{incidencia_id}", response_model=IncidenciaDetalle)
+def get_incident(incidencia_id: str) -> IncidenciaDetalle:
 	incident = _find_incident(incidencia_id)
 	history = sorted(
 		(
@@ -87,13 +99,28 @@ def get_incident(incidencia_id: str):
 		),
 		key=lambda change: change.timestamp,
 	)
-	return {"incidencia": incident, "historial": history}
+	return IncidenciaDetalle(
+		incidencia=incident,
+		historial=[
+			HistorialItemResponse(
+				id=change.id,
+				campo=change.campo,
+				valor_anterior=change.valor_anterior,
+				valor_nuevo=change.valor_nuevo,
+				autor=change.autor,
+				timestamp=change.timestamp,
+			)
+			for change in history
+		],
+	)
 
 
-@router.patch("/{incidencia_id}", response_model=Incidencia)
+@router.patch(
+	"/{incidencia_id}", response_model=IncidenciaUpdateConfirmacion
+)
 def update_incident(
 	incidencia_id: str, payload: IncidenciaUpdate
-) -> Incidencia:
+) -> IncidenciaUpdateConfirmacion:
 	incident = _find_incident(incidencia_id)
 	now = datetime.now()
 
@@ -129,4 +156,9 @@ def update_incident(
 		incident.area_responsable = payload.area_responsable
 
 	incident.updated_at = now
-	return incident
+	return IncidenciaUpdateConfirmacion(
+		id=incident.id,
+		estado=incident.estado,
+		area_responsable=incident.area_responsable,
+		updated_at=incident.updated_at,
+	)

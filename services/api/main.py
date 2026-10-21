@@ -1,7 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from routers import incidents, inventory
+
+
+class HealthResponse(BaseModel):
+    status: str
+    service: str
+
 
 app = FastAPI(
     title="Brasaland Central API",
@@ -20,6 +27,6 @@ app.include_router(incidents.router)
 app.include_router(inventory.router)
 
 
-@app.get("/health", tags=["health"])
+@app.get("/health", response_model=HealthResponse, tags=["health"])
 def health_check() -> dict[str, str]:
     return {"status": "ok", "service": "brasaland-central-api"}

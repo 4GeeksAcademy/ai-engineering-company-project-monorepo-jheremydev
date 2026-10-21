@@ -9,6 +9,7 @@ from models.inventory import (
 	LocalCreate,
 	Movimiento,
 	MovimientoCreate,
+	StockResponse,
 )
 from storage import inventory as storage
 
@@ -80,20 +81,20 @@ def get_movement(movement_id: str) -> Movimiento:
 	return movement
 
 
-@router.get("/stock")
+@router.get("/stock", response_model=StockResponse)
 def get_stock(
 	articulo_id: str = Query(min_length=1),
 	local: str = Query(min_length=1),
-) -> dict[str, object]:
+) -> StockResponse:
 	article = _find_article(articulo_id)
 	if storage.find_local(local) is None:
 		raise HTTPException(status_code=404, detail="Local no encontrado")
 	stock = storage.calculate_stock(article.id, local)
-	return {
-		"articulo_id": article.id,
-		"local": local,
-		"stock": stock,
-		"unidad_medida": article.unidad_medida,
-		"punto_reorden": article.punto_reorden,
-		"bajo_punto_reorden": stock < article.punto_reorden,
-	}
+	return StockResponse(
+		articulo_id=article.id,
+		local=local,
+		stock=stock,
+		unidad_medida=article.unidad_medida.value,
+		punto_reorden=article.punto_reorden,
+		bajo_punto_reorden=stock < article.punto_reorden,
+	)
