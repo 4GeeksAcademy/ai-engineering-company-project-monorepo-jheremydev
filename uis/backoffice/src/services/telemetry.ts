@@ -26,6 +26,55 @@ interface PendingBatch {
   retryTimer: ReturnType<typeof setTimeout> | null
 }
 
+interface PropertyRules {
+  allowed: readonly string[]
+  required: readonly string[]
+}
+
+const rules = (required: readonly string[], optional: readonly string[] = []): PropertyRules => ({
+  allowed: [...required, ...optional],
+  required,
+})
+
+/**
+ * Browser-emitted (source=browser) event types and their property allowlists, copied from
+ * docs/telemetry/event-schemas.json. API-only event types are rejected here.
+ */
+const BROWSER_EVENT_RULES: Record<string, PropertyRules> = {
+  'inventory.stock_lookup_completed': rules(['articleId', 'localId', 'stock', 'unit', 'belowReorderPoint', 'querySource', 'observationCount', 'windowMs']),
+  'inventory.reorder_indicator_displayed': rules(['articleId', 'localId', 'surface']),
+  'navigation.section_viewed': rules(['view', 'trigger']),
+  'inventory.article_selected': rules(['articleId', 'surface'], ['formAttemptId']),
+  'incident.detail_opened': rules(['incidentId', 'trigger']),
+  'incident.filters_applied': rules(['filters', 'changedFilter']),
+  'incident.filter_empty_result': rules(['filters', 'rowCount']),
+  'form.started': rules(['formType', 'formAttemptId']),
+  'form.abandoned': rules(['formType', 'formAttemptId', 'reason', 'elapsedMs', 'inferred']),
+  'inventory.prerequisite_blocked': rules(['missing']),
+  'incident.edit_discarded': rules(['incidentId', 'formAttemptId', 'changedFields', 'reason']),
+  'form.validation_blocked': rules(['formType', 'formAttemptId', 'field', 'rule']),
+  'performance.client_request_completed': rules(['method', 'route', 'durationMs', 'outcome'], ['httpStatus']),
+  'performance.backoffice_initial_load_completed': rules(['durationMs', 'outcome', 'requestCount', 'duplicateRequestCount', 'loadKind'], ['documentLoadMs']),
+  'performance.inventory_view_load_completed': rules(['durationMs', 'outcome', 'loadKind'], ['moduleLoadMs', 'dataLoadMs']),
+  'performance.incident_detail_load_completed': rules(['durationMs', 'outcome', 'loadKind'], ['moduleLoadMs', 'dataLoadMs']),
+  'performance.reorder_batch_completed': rules(['localId', 'articleCount', 'successfulCount', 'failedCount', 'durationMs', 'outcome']),
+  'frontend.uncaught_exception': rules(['module', 'errorFamily', 'releaseVersion'], ['errorFingerprint']),
+  'frontend.unhandled_rejection': rules(['module', 'errorFamily', 'releaseVersion'], ['errorFingerprint']),
+  'frontend.lazy_module_failed': rules(['module', 'releaseVersion'], ['errorFingerprint']),
+  'api.network_failed': rules(['method', 'route', 'operation', 'failureKind'], ['formAttemptId']),
+  'api.response_decode_failed': rules(['method', 'route', 'httpStatus', 'operation'], ['formAttemptId']),
+  'ui.operation_failed': rules(['operation', 'errorKind'], ['httpStatus', 'formAttemptId']),
+  'ui.post_write_refresh_failed': rules(['operation', 'formAttemptId', 'writeConfirmed', 'refreshStage'], ['httpStatus']),
+}
+
+function isAllowed(eventType: string, properties: Record<string, unknown>): boolean {
+  const eventRules = BROWSER_EVENT_RULES[eventType]
+  if (!eventRules) return false
+  const keys = Object.keys(properties)
+  return keys.every((key) => eventRules.allowed.includes(key))
+    && eventRules.required.every((key) => properties[key] !== undefined)
+}
+
 const queue: TelemetryEvent[] = []
 const pendingBatches = new Set<PendingBatch>()
 let flushTimer: ReturnType<typeof setTimeout> | null = null
@@ -182,37 +231,58 @@ function enqueue(event: TelemetryEvent): void {
   else scheduleFlush()
 }
 
-/**
- * Single entry point for backoffice telemetry. The envelope (eventId, timestamp,
- * sessionId, userId, schemaVersion, requestId, source, environment) is generated here.
- */
-export function track(eventType: string, properties: Record<string, unknown>): void {
+function capture(eventType: string, properties: Record<string, unknown>, requestId: string | null): void {
   try {
-    enqueue(buildEvent(eventType, properties, null))
+    if (!isAllowed(eventType, properties)) {
+      if (import.meta.env.DEV) console.warn(`[telemetry] discarded ${eventType}: not in allowlist`)
+      return
+    }
+    enqueue(buildEvent(eventType, properties, requestId))
   } catch {
     // Telemetry must never break the UI.
   }
 }
 
 /**
+ * Single entry point for backoffice telemetry. The envelope (eventId, timestamp,
+ * sessionId, userId, schemaVersion, requestId, source, environment) is generated here.
+ * Events whose properties fall outside the schema allowlist are discarded before queueing.
+ */
+export function track(eventType: string, properties: Record<string, unknown>, fromResponse?: object): void {
+  capture(eventType, properties, (fromResponse && responseRequestIds.get(fromResponse)) ?? null)
+}
+
+// API responses remember the X-Request-ID that produced them, so track() can correlate
+// events derived from a response without components ever handling requestId.
+const responseRequestIds = new WeakMap<object, string>()
+
+/** UUID v4 for form attempts (formAttemptId), so components never need their own generator. */
+export function newFormAttemptId(): string {
+  return uuidV4()
+}
+
+/**
  * Internal correlation helper for api/client.ts only: generates the X-Request-ID for one
- * HTTP request and a tracker whose events carry that requestId. Components use track().
+ * HTTP request (plus the anonymous session header) and a tracker whose events carry that
+ * requestId. Components use track().
  */
 export function trackRequest<T>(
   run: (context: {
     requestId: string
+    headers: Record<string, string>
     track: (eventType: string, properties: Record<string, unknown>) => void
   }) => Promise<T>,
 ): Promise<T> {
   const requestId = uuidV4()
   return run({
     requestId,
-    track: (eventType, properties) => {
-      try {
-        enqueue(buildEvent(eventType, properties, requestId))
-      } catch {
-        // Telemetry must never break the UI.
-      }
+    headers: {
+      'X-Request-ID': requestId,
+      'X-Telemetry-Session-Id': currentSessionId(Date.now()),
     },
+    track: (eventType, properties) => capture(eventType, properties, requestId),
+  }).then((result) => {
+    if (typeof result === 'object' && result !== null) responseRequestIds.set(result, requestId)
+    return result
   })
 }

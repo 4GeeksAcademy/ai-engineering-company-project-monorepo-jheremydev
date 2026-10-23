@@ -14,6 +14,7 @@ from models.inventory import (
 	StockResponse,
 )
 from storage import inventory as storage
+from storage import telemetry
 
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
@@ -59,6 +60,10 @@ _locals_cache: _TTLCache[list[Local]] = _TTLCache(LOCALS_CACHE_TTL_SECONDS)
 def create_local(payload: LocalCreate) -> Local:
 	local = storage.create_local(payload)
 	_locals_cache.invalidate()
+	telemetry.emit(
+		"inventory.local_created",
+		{"localId": local.id, **telemetry.form_attempt_property()},
+	)
 	return local
 
 
@@ -71,6 +76,18 @@ def list_locals() -> list[Local]:
 def create_article(payload: ArticuloCreate) -> Articulo:
 	article = storage.create_article(payload)
 	_articles_cache.invalidate()
+	reorder_point = telemetry.decimal_string(article.punto_reorden)
+	if reorder_point is not None:
+		telemetry.emit(
+			"inventory.article_created",
+			{
+				"articleId": article.id,
+				"category": article.categoria.value,
+				"unit": article.unidad_medida.value,
+				"reorderPoint": reorder_point,
+				**telemetry.form_attempt_property(),
+			},
+		)
 	return article
 
 
@@ -93,14 +110,65 @@ def get_article(article_id: str) -> Articulo:
 
 @router.post("/movements", response_model=Movimiento, status_code=201)
 def create_movement(payload: MovimientoCreate) -> Movimiento:
+	movement_type = payload.tipo.value
+	form_attempt = telemetry.form_attempt_property()
 	try:
-		return storage.register_movement(payload)
-	except storage.ArticleNotFoundError as error:
-		raise HTTPException(status_code=404, detail=str(error)) from error
-	except storage.LocalNotFoundError as error:
+		movement = storage.register_movement(payload)
+	except (storage.ArticleNotFoundError, storage.LocalNotFoundError) as error:
+		telemetry.emit(
+			"inventory.movement_reference_rejected",
+			{
+				"httpStatus": 404,
+				"missingEntity": "article" if isinstance(error, storage.ArticleNotFoundError) else "local",
+				"movementType": movement_type,
+				**form_attempt,
+			},
+		)
 		raise HTTPException(status_code=404, detail=str(error)) from error
 	except storage.NegativeStockError as error:
+		_emit_negative_stock_rejected(payload, form_attempt)
 		raise HTTPException(status_code=409, detail=str(error)) from error
+
+	article = storage.find_article(movement.articulo_id)
+	quantity = telemetry.decimal_string(movement.cantidad)
+	stock_after = telemetry.decimal_string(storage.calculate_stock(movement.articulo_id, movement.local))
+	if article is not None and quantity is not None and stock_after is not None:
+		telemetry.emit(
+			"inventory.movement_created",
+			{
+				"httpStatus": 201,
+				"movementId": movement.id,
+				"articleId": movement.articulo_id,
+				"localId": movement.local,
+				"movementType": movement_type,
+				"quantity": quantity,
+				"stockAfter": stock_after,
+				"unit": article.unidad_medida.value,
+				**form_attempt,
+			},
+		)
+	return movement
+
+
+def _emit_negative_stock_rejected(payload: MovimientoCreate, form_attempt: dict[str, str]) -> None:
+	article = storage.find_article(payload.articulo_id)
+	quantity = telemetry.decimal_string(payload.cantidad)
+	stock_before = telemetry.decimal_string(storage.calculate_stock(payload.articulo_id, payload.local))
+	if article is None or quantity is None or stock_before is None:
+		return
+	telemetry.emit(
+		"inventory.movement_negative_stock_rejected",
+		{
+			"httpStatus": 409,
+			"articleId": payload.articulo_id,
+			"localId": payload.local,
+			"movementType": payload.tipo.value,
+			"quantity": quantity,
+			"stockBefore": stock_before,
+			"unit": article.unidad_medida.value,
+			**form_attempt,
+		},
+	)
 
 
 @router.get("/movements", response_model=list[Movimiento])
@@ -132,11 +200,27 @@ def get_stock(
 	if storage.find_local(local) is None:
 		raise HTTPException(status_code=404, detail="Local no encontrado")
 	stock = storage.calculate_stock(article.id, local)
+	below_reorder_point = stock < article.punto_reorden
+	if below_reorder_point:
+		stock_text = telemetry.decimal_string(stock)
+		reorder_point = telemetry.decimal_string(article.punto_reorden)
+		if stock_text is not None and reorder_point is not None:
+			telemetry.emit(
+				"inventory.reorder_signal_active",
+				{
+					"articleId": article.id,
+					"localId": local,
+					"stock": stock_text,
+					"reorderPoint": reorder_point,
+					"unit": article.unidad_medida.value,
+					"belowReorderPoint": True,
+				},
+			)
 	return StockResponse(
 		articulo_id=article.id,
 		local=local,
 		stock=stock,
 		unidad_medida=article.unidad_medida.value,
 		punto_reorden=article.punto_reorden,
-		bajo_punto_reorden=stock < article.punto_reorden,
+		bajo_punto_reorden=below_reorder_point,
 	)
