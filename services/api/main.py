@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from routers import incidents, inventory
+from routers import incidents, inventory, telemetry
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -53,6 +53,7 @@ async def log_request_timing(request: Request, call_next):
 
 app.include_router(incidents.router)
 app.include_router(inventory.router)
+app.include_router(telemetry.router)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["health"])
