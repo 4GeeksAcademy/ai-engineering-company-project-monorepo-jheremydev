@@ -25,8 +25,25 @@ import {
 } from './api/inventory'
 import { formatDate } from './utils/formatDate'
 import SelectField from './components/SelectField'
+import { useFormTelemetry } from './hooks/useFormTelemetry'
+import { track } from './services/telemetry'
+import { trackOperationFailed } from './services/telemetryErrors'
 
 type MovementFormState = Omit<NewInventoryMovement, 'articulo_id'>
+type StockQuerySource = 'manual' | 'reorder_batch' | 'post_write'
+
+function trackStockLookup(result: InventoryStock, localId: string, querySource: StockQuerySource) {
+  track('inventory.stock_lookup_completed', {
+    articleId: result.articulo_id,
+    localId,
+    stock: String(result.stock),
+    unit: result.unidad_medida,
+    belowReorderPoint: result.bajo_punto_reorden,
+    querySource,
+    observationCount: 1,
+    windowMs: 0,
+  }, result)
+}
 
 const createEmptyArticleForm = (): NewInventoryArticle => ({
   nombre: '',
@@ -76,6 +93,9 @@ function InventoryManager() {
   const [loadingStock, setLoadingStock] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const { bindForm: bindMovementForm, ...movementTelemetry } = useFormTelemetry('movement_create', { abandonOnUnmount: true })
+  const { bindForm: bindArticleForm, ...articleTelemetry } = useFormTelemetry('article_create')
+  const { bindForm: bindLocalForm, ...localTelemetry } = useFormTelemetry('local_create')
 
   const articlesById = useMemo(
     () => new Map(articles.map((article) => [article.id, article])),
@@ -98,9 +118,17 @@ function InventoryManager() {
           local: current.local || locationData[0]?.id || '',
         }))
         setStockLocal(locationData[0]?.id ?? '')
+        if (articleData.length === 0 || locationData.length === 0) {
+          const missing = articleData.length === 0 && locationData.length === 0
+            ? 'both'
+            : articleData.length === 0 ? 'articles' : 'locals'
+          track('inventory.prerequisite_blocked', { missing })
+        }
       })
       .catch((requestError: unknown) => {
-        if (active) setError(errorMessage(requestError, 'No se pudo cargar el inventario.'))
+        if (!active) return
+        trackOperationFailed('inventory_load', requestError)
+        setError(errorMessage(requestError, 'No se pudo cargar el inventario.'))
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -117,17 +145,25 @@ function InventoryManager() {
 
     void Promise.all(articles.map(async (article) => {
       const result = await getStock(article.id, stockLocal)
-      return [article.id, result.bajo_punto_reorden] as const
+      return [article.id, result] as const
     }))
       .then((results) => {
         if (!active) return
+        for (const [articleId, result] of results) {
+          trackStockLookup(result, stockLocal, 'reorder_batch')
+          if (result.bajo_punto_reorden) {
+            track('inventory.reorder_indicator_displayed', { articleId, localId: stockLocal, surface: 'article_list' })
+          }
+        }
         setArticleReorderStatus({
           queryKey: reorderQueryKey,
-          flags: Object.fromEntries(results),
+          flags: Object.fromEntries(results.map(([articleId, result]) => [articleId, result.bajo_punto_reorden])),
         })
       })
       .catch((requestError: unknown) => {
-        if (active) setError(errorMessage(requestError, 'No se pudo consultar el stock de los artículos.'))
+        if (!active) return
+        trackOperationFailed('reorder_batch', requestError)
+        setError(errorMessage(requestError, 'No se pudo consultar el stock de los artículos.'))
       })
 
     return () => {
@@ -151,12 +187,14 @@ function InventoryManager() {
     setSavingArticle(true)
     setError('')
     setNotice('')
+    const formAttemptId = articleTelemetry.start()
     try {
       const article = await createArticle({
         ...articleForm,
         nombre: articleForm.nombre.trim(),
         punto_reorden: articleForm.punto_reorden,
       })
+      articleTelemetry.complete()
       setArticleForm(createEmptyArticleForm())
       setSelectedArticleId(article.id)
       setStockArticleId(article.id)
@@ -164,6 +202,7 @@ function InventoryManager() {
       await reloadInventory()
       setNotice('Artículo registrado correctamente.')
     } catch (requestError) {
+      trackOperationFailed('article_create', requestError, formAttemptId)
       setError(errorMessage(requestError, 'No se pudo registrar el artículo.'))
     } finally {
       setSavingArticle(false)
@@ -175,8 +214,10 @@ function InventoryManager() {
     setSavingLocation(true)
     setError('')
     setNotice('')
+    const formAttemptId = localTelemetry.start()
     try {
       const location = await createLocal({ nombre: locationName.trim() })
+      localTelemetry.complete()
       await reloadLocations()
       setLocationName('')
       setMovementForm((current) => ({ ...current, local: location.id }))
@@ -184,6 +225,7 @@ function InventoryManager() {
       setStock(null)
       setNotice(`Local "${location.nombre}" creado correctamente.`)
     } catch (requestError) {
+      trackOperationFailed('local_create', requestError, formAttemptId)
       setError(errorMessage(requestError, 'No se pudo registrar el local.'))
     } finally {
       setSavingLocation(false)
@@ -195,6 +237,7 @@ function InventoryManager() {
     setSavingMovement(true)
     setError('')
     setNotice('')
+    const formAttemptId = movementTelemetry.start()
     try {
       const payload: NewInventoryMovement = {
         articulo_id: selectedArticleId,
@@ -206,14 +249,18 @@ function InventoryManager() {
         ...(movementForm.motivo?.trim() ? { motivo: movementForm.motivo.trim() } : {}),
       }
       await createMovement(payload)
+      movementTelemetry.complete()
       setMovementForm((current) => ({ ...current, cantidad: '', motivo: '' }))
       setArticleReorderStatus(null)
       await reloadInventory()
       if (stock && stock.articulo_id === payload.articulo_id && stock.local === payload.local) {
-        setStock(await getStock(payload.articulo_id, payload.local))
+        const refreshed = await getStock(payload.articulo_id, payload.local)
+        trackStockLookup(refreshed, payload.local, 'post_write')
+        setStock(refreshed)
       }
       setNotice('Movimiento registrado correctamente.')
     } catch (requestError) {
+      trackOperationFailed('movement_create', requestError, formAttemptId)
       setError(errorMessage(requestError, 'No se pudo registrar el movimiento.'))
     } finally {
       setSavingMovement(false)
@@ -228,8 +275,17 @@ function InventoryManager() {
     setStock(null)
     try {
       const result = await getStock(stockArticleId, stockLocal)
+      trackStockLookup(result, stockLocal, 'manual')
+      if (result.bajo_punto_reorden) {
+        track('inventory.reorder_indicator_displayed', {
+          articleId: result.articulo_id,
+          localId: stockLocal,
+          surface: 'stock_result',
+        })
+      }
       setStock(result)
     } catch (requestError) {
+      trackOperationFailed('stock_lookup', requestError)
       setError(errorMessage(requestError, 'No se pudo consultar el stock.'))
     } finally {
       setLoadingStock(false)
@@ -237,9 +293,21 @@ function InventoryManager() {
   }
 
   const selectArticle = (articleId: string) => {
+    track('inventory.article_selected', { articleId, surface: 'article_list' })
     setSelectedArticleId(articleId)
     setStockArticleId(articleId)
     setStock(null)
+  }
+
+  const selectMovementArticle = (articleId: string) => {
+    setSelectedArticleId(articleId)
+    if (articleId) {
+      track('inventory.article_selected', {
+        articleId,
+        surface: 'movement_form',
+        formAttemptId: movementTelemetry.start(),
+      })
+    }
   }
 
   return (
@@ -263,10 +331,11 @@ function InventoryManager() {
               </div>
               <span className="step-mark">01</span>
             </div>
-            <form onSubmit={handleCreateArticle}>
+            <form ref={bindArticleForm} onChange={() => { articleTelemetry.start() }} onSubmit={handleCreateArticle}>
               <label className="field">
                 <span>Nombre</span>
                 <input
+                  name="nombre"
                   required
                   value={articleForm.nombre}
                   onChange={(event) => setArticleForm({ ...articleForm, nombre: event.target.value })}
@@ -274,6 +343,7 @@ function InventoryManager() {
               </label>
               <SelectField
                 label="Categoría"
+                name="categoria"
                 value={articleForm.categoria}
                 options={inventoryCategories}
                 onChange={(value) => setArticleForm({
@@ -283,6 +353,7 @@ function InventoryManager() {
               />
               <SelectField
                 label="Unidad de medida"
+                name="unidad_medida"
                 value={articleForm.unidad_medida}
                 options={inventoryUnits}
                 onChange={(value) => setArticleForm({
@@ -293,6 +364,7 @@ function InventoryManager() {
               <label className="field">
                 <span>Punto de reorden</span>
                 <input
+                  name="punto_reorden"
                   required
                   type="number"
                   min="0"
@@ -317,10 +389,11 @@ function InventoryManager() {
                 <h2>Crear local</h2>
               </div>
             </div>
-            <form onSubmit={handleCreateLocation}>
+            <form ref={bindLocalForm} onChange={() => { localTelemetry.start() }} onSubmit={handleCreateLocation}>
               <label className="field">
                 <span>Nombre</span>
                 <input
+                  name="nombre"
                   required
                   value={locationName}
                   onChange={(event) => setLocationName(event.target.value)}
@@ -381,19 +454,21 @@ function InventoryManager() {
               </div>
               <span className="step-mark">02</span>
             </div>
-            <form onSubmit={handleCreateMovement}>
+            <form ref={bindMovementForm} onChange={() => { movementTelemetry.start() }} onSubmit={handleCreateMovement}>
               <SelectField
                 label="Artículo"
+                name="articulo_id"
                 required
                 value={selectedArticleId}
                 disabled={articles.length === 0}
                 placeholder="Seleccionar artículo"
                 options={articles.map((article) => ({ value: article.id, label: article.nombre }))}
-                onChange={(value) => setSelectedArticleId(value)}
+                onChange={selectMovementArticle}
               />
               <div className="field-row">
                 <SelectField
                   label="Local"
+                  name="local"
                   required
                   value={movementForm.local}
                   disabled={locations.length === 0}
@@ -406,6 +481,7 @@ function InventoryManager() {
                 />
                 <SelectField
                   label="Tipo"
+                  name="tipo"
                   value={movementForm.tipo}
                   options={movementTypes}
                   onChange={(value) => setMovementForm({
@@ -418,6 +494,7 @@ function InventoryManager() {
                 <label className="field">
                   <span>Cantidad</span>
                   <input
+                    name="cantidad"
                     required
                     type="number"
                     step="any"
@@ -431,6 +508,7 @@ function InventoryManager() {
                 <label className="field">
                   <span>Autor</span>
                   <input
+                    name="autor"
                     required
                     value={movementForm.autor}
                     onChange={(event) => setMovementForm({ ...movementForm, autor: event.target.value })}
@@ -441,6 +519,7 @@ function InventoryManager() {
                 <label className="field">
                   <span>Fecha y hora</span>
                   <input
+                    name="fecha"
                     required
                     type="datetime-local"
                     value={movementForm.fecha}
@@ -450,6 +529,7 @@ function InventoryManager() {
                 <label className="field">
                   <span>Motivo (opcional)</span>
                   <input
+                    name="motivo"
                     value={movementForm.motivo ?? ''}
                     onChange={(event) => setMovementForm({ ...movementForm, motivo: event.target.value })}
                   />
