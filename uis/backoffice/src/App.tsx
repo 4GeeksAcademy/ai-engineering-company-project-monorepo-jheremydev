@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { createIncident, getIncident, getIncidents, updateIncident } from './api/incidents'
-import InventoryManager from './InventoryManager'
+import { createIncident, getIncidents } from './api/incidents'
 import SelectField from './components/SelectField'
-import { formatDate } from './utils/formatDate'
-import { areas, channels, incidentTypes, severities, statuses, type Area, type Incident, type IncidentFilters, type IncidentType, type NewIncident, type Severity, type Status } from '@repo/shared-types'
+import { areas, channels, incidentTypes, severities, statuses, type Area, type Incident, type IncidentFilters, type IncidentType, type NewIncident, type Severity } from '@repo/shared-types'
+
+const InventoryManager = lazy(() => import('./InventoryManager'))
+const IncidentDetailView = lazy(() => import('./components/IncidentDetailView'))
 
 const emptyForm: NewIncident = { canal: channels[0], tipo: incidentTypes[0], severidad: severities[1], area_responsable: areas[0], autor: '' }
 
@@ -98,7 +99,11 @@ function App() {
           Inventario
         </button>
       </nav>
-      {activeView === 'inventory' ? <InventoryManager /> : <>
+      {activeView === 'inventory' ? (
+        <Suspense fallback={<p className="empty-state">Cargando inventario...</p>}>
+          <InventoryManager />
+        </Suspense>
+      ) : <>
       {(error || notice) && <div className={`message ${error ? 'message-error' : 'message-success'}`}>{error || notice}</div>}
       <section className="summary-grid" aria-label="Resumen operativo">
         <div className="summary-lead"><span className="section-kicker">Vista operativa</span><strong>{openIncidents.length}</strong><span>incidencias abiertas en esta consulta</span></div>
@@ -121,7 +126,7 @@ function App() {
           {loading ? <p className="empty-state">Cargando incidencias...</p> : incidents.length === 0 ? <p className="empty-state">No hay incidencias para estos filtros.</p> : <IncidentTable incidents={incidents} selectedId={selectedId} onSelect={setSelectedId} />}
         </section>
       </div>
-      {selectedId && <IncidentDetailView id={selectedId} onUpdated={() => Promise.all([loadIncidents(), loadOperationalIncidents()]).then(() => undefined)} onClose={() => setSelectedId(null)} setError={setError} />}
+      {selectedId && <Suspense fallback={<div className="detail-backdrop" role="presentation"><aside className="detail-drawer"><p className="empty-state">Cargando detalle...</p></aside></div>}><IncidentDetailView id={selectedId} onUpdated={() => Promise.all([loadIncidents(), loadOperationalIncidents()]).then(() => undefined)} onClose={() => setSelectedId(null)} setError={setError} /></Suspense>}
       </>}
     </main>
   )
@@ -133,31 +138,6 @@ function FilterSelect<T extends string>({ label, value, options, onChange }: { l
 
 function IncidentTable({ incidents, selectedId, onSelect }: { incidents: Incident[]; selectedId: string | null; onSelect: (id: string) => void }) {
   return <div className="table-wrap"><table><thead><tr><th>Canal</th><th>Tipo</th><th>Severidad</th><th>Área responsable</th><th>Estado</th><th>Autor</th></tr></thead><tbody>{incidents.map((incident) => <tr className={selectedId === incident.id ? 'selected-row' : ''} key={incident.id} onClick={() => onSelect(incident.id)} tabIndex={0} onKeyDown={(event) => event.key === 'Enter' && onSelect(incident.id)}><td>{incident.canal}</td><td className="strong-cell">{incident.tipo}</td><td><span className={`badge badge-${incident.severidad.toLowerCase()}`}>{incident.severidad}</span></td><td>{incident.area_responsable}</td><td><span className="status-dot"><i />{incident.estado}</span></td><td>{incident.autor}</td></tr>)}</tbody></table></div>
-}
-
-function IncidentDetailView({ id, onUpdated, onClose, setError }: { id: string; onUpdated: () => void; onClose: () => void; setError: (message: string) => void }) {
-  const [detail, setDetail] = useState<Awaited<ReturnType<typeof getIncident>> | null>(null)
-  const [status, setStatus] = useState<Status | ''>('')
-  const [area, setArea] = useState<Area | ''>('')
-  const [author, setAuthor] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    void getIncident(id).then((data) => { setDetail(data); setStatus(data.incidencia.estado); setArea(data.incidencia.area_responsable) }).catch((error: unknown) => setError(error instanceof Error ? error.message : 'No se pudo cargar el detalle.'))
-  }, [id, setError])
-
-  const saveChanges = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!detail || !author.trim()) return
-    setSaving(true)
-    try {
-      await updateIncident(id, { estado: status || undefined, area_responsable: area || undefined, autor: author.trim() })
-      setAuthor(''); onUpdated()
-      const fresh = await getIncident(id); setDetail(fresh); setStatus(fresh.incidencia.estado); setArea(fresh.incidencia.area_responsable)
-    } catch (error) { setError(error instanceof Error ? error.message : 'No se pudo actualizar la incidencia.') } finally { setSaving(false) }
-  }
-
-  return <div className="detail-backdrop" role="presentation" onClick={onClose}><aside className="detail-drawer" onClick={(event) => event.stopPropagation()}>{!detail ? <p className="empty-state">Cargando detalle...</p> : <><div className="drawer-header"><div><span className="section-kicker">Ficha de incidencia</span><h2>{detail.incidencia.tipo}</h2></div><button className="close-button" type="button" onClick={onClose} aria-label="Cerrar detalle">×</button></div><div className="detail-meta"><span className={`badge badge-${detail.incidencia.severidad.toLowerCase()}`}>{detail.incidencia.severidad}</span><span>{detail.incidencia.canal}</span><span>{detail.incidencia.autor}</span></div><dl className="detail-grid"><div><dt>ID</dt><dd>{detail.incidencia.id}</dd></div><div><dt>Creada</dt><dd>{formatDate(detail.incidencia.created_at)}</dd></div><div><dt>Área</dt><dd>{detail.incidencia.area_responsable}</dd></div><div><dt>Actualizada</dt><dd>{formatDate(detail.incidencia.updated_at)}</dd></div></dl><form className="update-form" onSubmit={saveChanges}><span className="section-kicker">Actualizar seguimiento</span><div className="field-row"><SelectField label="Estado" value={status} options={statuses} onChange={(value) => setStatus(value as Status)} /><SelectField label="Área responsable" value={area} options={areas} onChange={(value) => setArea(value as Area)} /></div><label className="field"><span>Autor del cambio</span><input required value={author} onChange={(event) => setAuthor(event.target.value)} placeholder="Quién realiza el cambio" /></label><button className="primary-button" type="submit" disabled={saving}>{saving ? 'Actualizando...' : 'Guardar cambios'} <span>→</span></button></form><div className="history"><div className="history-title"><span className="section-kicker">Trazabilidad</span><strong>{detail.historial.length} cambios</strong></div>{detail.historial.length === 0 ? <p className="empty-state">Sin cambios registrados.</p> : detail.historial.map((change) => <div className="history-item" key={change.id}><span className="history-field">{change.campo}</span><p><strong>{change.valor_anterior}</strong> <span>→</span> {change.valor_nuevo}</p><small>{change.autor} · {formatDate(change.timestamp)}</small></div>)}</div></>}</aside></div>
 }
 
 export default App
