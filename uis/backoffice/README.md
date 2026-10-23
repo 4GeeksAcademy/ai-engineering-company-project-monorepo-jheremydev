@@ -20,7 +20,10 @@ Copia `.env.example` a `.env.local` y ajusta la URL de la API si es necesario:
 
 ```bash
 VITE_API_BASE_URL=http://localhost:8000
+NEXT_PUBLIC_TELEMETRY_ENDPOINT=/telemetry/events
 ```
+
+`vite.config.ts` declara `envPrefix: ['VITE_', 'NEXT_PUBLIC_']` para exponer la variable de telemetría. Si no se define, el servicio usa `/telemetry/events`, que el proxy de Vite (`/telemetry`) reenvía a `API_PROXY_TARGET`. Un endpoint del mismo origen evita preflight CORS en `sendBeacon`.
 
 ## Desarrollo local
 
@@ -35,6 +38,10 @@ Vite mostrara la URL local del backoffice en la terminal.
 ## API
 
 La aplicacion se conectara a la API FastAPI centralizada de `services/api/`. La URL base se configura mediante `VITE_API_BASE_URL`; no debe hardcodearse en el codigo fuente.
+
+## Telemetria
+
+Todo el tracking pasa por `track(eventType, properties)` de `src/services/telemetry.ts`; ningun otro archivo llama a `fetch` para telemetria. El servicio genera el envelope de `docs/telemetry/event-schemas.json` (`eventId`, `timestamp` de captura, `sessionId` anonimo por pestana en `sessionStorage`, `userId` siempre `null`, `schemaVersion` desde `@repo/shared-types`, `requestId`, `source`, `environment`). Encola en memoria y envia lotes cada 10 s o al llegar a 20 eventos, con hasta 3 intentos y backoff exponencial (1 s, 2 s); hace flush con `sendBeacon` cuando la pestana pasa a `hidden`. `trackRequest()` es un helper interno reservado a `src/api/client.ts` para correlacionar eventos con el `X-Request-ID` de una peticion.
 
 ## Componentes compartidos
 

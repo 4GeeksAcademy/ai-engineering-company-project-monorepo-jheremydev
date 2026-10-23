@@ -14,3 +14,4 @@ export interface BaseEntity {
 
 export * from './incidents';
 export * from './inventory';
+export * from './telemetry';

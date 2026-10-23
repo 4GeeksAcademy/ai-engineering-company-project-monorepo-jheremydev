@@ -4,6 +4,8 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Keep VITE_* (API base URL) and expose NEXT_PUBLIC_TELEMETRY_ENDPOINT.
+  envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
   server: {
     port: 5173,
     strictPort: true,
@@ -17,6 +19,10 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/health': {
+        target: process.env.API_PROXY_TARGET,
+        changeOrigin: true,
+      },
+      '/telemetry': {
         target: process.env.API_PROXY_TARGET,
         changeOrigin: true,
       },
