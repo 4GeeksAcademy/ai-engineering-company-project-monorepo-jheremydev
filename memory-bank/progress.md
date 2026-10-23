@@ -11,7 +11,7 @@ _Actualizar cada vez que el proyecto evolucione: nuevas decisiones, features com
 | Infraestructura de agentes (banco de memoria, `AGENTS.md`, `.agents/rules`, `.agents/skills`) | En curso — este desarrollo | `feature/agent-memory-bank` (sale de `inventory-manager`) | pendiente de abrir |
 | Auditoría de serialización de API | Implementadas y verificadas mejoras de respuesta para health, incidencias y stock | `feature/serialization-audit` (desde `main`) | — |
 | Optimización de rendimiento/caching | Fase 2 implementa TTL e invalidación en catálogos, lazy loading de inventario/detalle y Map memoizado; verificación documentada | `feature/caching-optimisation` | — |
-| Plan de telemetría | Fase 1: catálogo de 47 candidatos (7 obligatorios derivados del código y 40 oportunidades), sin autenticación implementada ni diseño de Envelope/Schema; reglas HTTP y reorden comprobadas con TestClient; documento en `docs/telemetry/telemetry-plan.md` | `feature/telemetry-plan` | — |
+| Plan de telemetría | Fases 1-3: catálogo y 47 esquemas draft-07 con allowlists cerrados, envelope sin identidad autenticada, entrega de 18 tipos stream y 29 batch, controles de frecuencia y privacidad; contratos validados con AJV y reglas HTTP/reorden comprobadas con TestClient; diseño sin instrumentación en `docs/telemetry/` | `feature/telemetry-plan` | — |
 | `uis/website` (web corporativa pública) | Construida; pendiente de verificación en ejecución | `feature/agent-memory-bank` | — |
 | `uis/backoffice` | Funcional: pestañas de Incidencias e Inventario, ambas consumiendo la API real | ya en `inventory-manager` | — |
 
