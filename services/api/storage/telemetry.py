@@ -1,7 +1,7 @@
 """Server-side telemetry emitter (source=api).
 
 Builds the closed envelope of docs/telemetry/event-schemas.json, buffers events in memory and
-ships them in batches to TELEMETRY_ENDPOINT (the /telemetry/events stub). Emission never raises
+ships them in batches to TELEMETRY_ENDPOINT (the /telemetry/events collector). Emission never raises
 into the request that produced it.
 """
 
