@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from routers import incidents, inventory, telemetry
+from routers import incidents, inventory, telemetry, telemetry_report
 from storage import telemetry as telemetry_emitter
 
 
@@ -130,6 +130,7 @@ async def track_validation_errors(request: Request, exc: RequestValidationError)
 app.include_router(incidents.router)
 app.include_router(inventory.router)
 app.include_router(telemetry.router)
+app.include_router(telemetry_report.router)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["health"])
