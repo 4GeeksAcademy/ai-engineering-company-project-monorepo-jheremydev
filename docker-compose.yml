@@ -5,8 +5,18 @@ services:
       dockerfile: Dockerfile
       additional_contexts:
         monorepo: .
-    env_file:
-      - .env
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        sed -i 's/\r$//' /workspace/start.sh
+        exec /workspace/start.sh
+    environment:
+      BACKOFFICE_PORT: "${BACKOFFICE_PORT}"
+      WEBSITE_PORT: "${WEBSITE_PORT}"
+      API_PROXY_TARGET: "http://api:${API_PORT}"
+      VITE_API_BASE_URL: ""
+      NEXT_PUBLIC_TELEMETRY_ENDPOINT: "/telemetry/events"
     ports:
       - "${BACKOFFICE_PORT}:${BACKOFFICE_PORT}"
       - "${WEBSITE_PORT}:${WEBSITE_PORT}"
@@ -21,8 +31,12 @@ services:
     build:
       context: ./services
       dockerfile: Dockerfile
+      additional_contexts:
+        monorepo: .
     env_file:
       - .env
+    environment:
+      TELEMETRY_ENDPOINT: "http://127.0.0.1:${API_PORT}/telemetry/events"
     command:
       - sh
       - -c
