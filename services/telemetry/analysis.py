@@ -61,7 +61,7 @@ def _read_events(
         (
             "and",
             f"(timestamp.gte.{start_date.astimezone(timezone.utc).isoformat()},"
-            f"timestamp.lte.{end_date.astimezone(timezone.utc).isoformat()},event_type.not.is.null)",
+            f"timestamp.lt.{end_date.astimezone(timezone.utc).isoformat()},event_type.not.is.null)",
         ),
     ]
     if event_types is not None:
