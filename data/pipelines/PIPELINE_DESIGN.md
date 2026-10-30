@@ -64,9 +64,42 @@ El único KPI expresamente incluido en el propósito contractual de esta parte e
 
 ### Diagrama de flujo
 
-> ⚠️ **Pendiente de completar** — el diagrama (texto o Mermaid) con las tres etapas separadas (extracción, transformación, carga) no se incluyó en este borrador y debe añadirse antes de considerar esta fase cerrada.
+```text
+FUENTES                          EXTRACCION                                    STAGING (por run_id)
+--------------------------       --------------------------------------        -------------------------------
+POS Colombia (pendiente) --+
+                            +--> extract_pos_sales_task             -------->  staging.pos_sales_raw
+POS Florida   (pendiente) --+
 
-Las etapas de extracción, transformación y carga son independientes. El flujo no podrá publicar ventas hasta contar con acceso a la fuente POS y validar su contrato.
+public.telemetry_events  ----->  extract_telemetry_control_task     -------->  staging.telemetry_control_raw
+(solo lectura, control)
+
+
+STAGING                           TRANSFORMACION                                RESULTADO EN MEMORIA/STAGING
+-------------------------        --------------------------------------        -------------------------------
+staging.pos_sales_raw       +
+staging.telemetry_control_raw +-> validate_and_deduplicate_task      -------->  filas validas + rechazadas/duplicadas
+                                   (dedup por ID ticket POS / eventId)
+                                         |
+                                         v
+                                   transform_weekly_sales_task       -------->  agregados por
+                                   (normaliza local/mercado/moneda,             (week_start, market, local_id, currency)
+                                    calcula sales_total_amount,
+                                    ticket_count)
+
+
+AGREGADOS                         CARGA                                         DESTINO (reporting.*)
+-------------------------        --------------------------------------        -------------------------------
+agregados de la ventana      +-> load_reporting_summary_task         -------->  reporting.weekly_sales_summary
+                                   (upsert transaccional por clave                (upsert por clave natural,
+                                    natural + avance de watermark)                watermark actualizado)
+                                         |
+                                         v
+                                   finalize_run_log_task              -------->  reporting.pipeline_run_log
+                                   (status, conteos, errores)                    (una fila por corrida)
+```
+
+Las tres etapas (extracción, transformación, carga) son independientes y se comunican solo a través de staging identificado por `run_id`; ninguna etapa escribe directamente en el destino final de otra. El flujo no podrá publicar ventas en producción hasta contar con acceso real a la fuente POS y validar su contrato; mientras tanto, `extract_pos_sales_task` queda marcada como pendiente de integración en el diagrama. El flujo no podrá publicar ventas hasta contar con acceso a la fuente POS y validar su contrato.
 
 ### Transformación propuesta
 
@@ -119,17 +152,17 @@ Los endpoints de reporting serán nuevos en `services/reporting/`, separados de 
 
 Tabla candidata `reporting.pipeline_run_log` (nombre propuesto, pendiente de aprobación) con al menos estos campos:
 
-| Campo | Por qué se necesita |
-|---|---|
-| `run_id` | ID único para correlacionar las tasks, el estado de Prefect y las filas que publicó esa corrida. |
-| `flow_name`, `trigger_type` (schedule, manual, backfill) | Identifica el pipeline y diferencia ejecución programada de intervención manual o histórica. |
-| `started_at` (UTC) | Detecta retrasos, mide duración y descubre ejecuciones huérfanas que comenzaron pero no finalizaron. |
-| `finished_at` (UTC, nullable) | Registra fin real; nulo mientras corre o si el proceso murió sin poder cerrar el registro. |
-| `status` (Running, Completed, Failed) | Permite auditar si se completó y evita confundir presencia de filas con ejecución exitosa. |
-| `period_start`, `period_end`, `source_watermark` | Precisa qué intervalo y posición de origen se procesaron y desde dónde reanudar/reproducir. |
-| `source_records_read`, `unique_records_processed`, `duplicate_records_skipped`, `destination_rows_upserted` | Reconcilia origen, deduplicación y destino para detectar huecos, duplicados o carga incompleta. |
-| `error_code`, `error_summary` | Deja rastro de errores sin almacenar secretos ni payloads personales/sensibles. |
-| `initiated_by` y `request_id` (nullable) | Permite auditar un disparo manual y correlacionarlo con los logs de API sin tratar `requestId` como identidad ni clave de venta. |
+| Campo | Tipo de dato | Por qué se necesita |
+|---|---|---|
+| `run_id` | UUID | ID único para correlacionar las tasks, el estado de Prefect y las filas que publicó esa corrida. |
+| `flow_name`, `trigger_type` (schedule, manual, backfill) | TEXT | Identifica el pipeline y diferencia ejecución programada de intervención manual o histórica. |
+| `started_at` (UTC) | TIMESTAMPTZ | Detecta retrasos, mide duración y descubre ejecuciones huérfanas que comenzaron pero no finalizaron. |
+| `finished_at` (UTC, nullable) | TIMESTAMPTZ NULL | Registra fin real; nulo mientras corre o si el proceso murió sin poder cerrar el registro. |
+| `status` (Running, Completed, Failed) | TEXT (enum) | Permite auditar si se completó y evita confundir presencia de filas con ejecución exitosa. |
+| `period_start`, `period_end`, `source_watermark` | TIMESTAMPTZ | Precisa qué intervalo y posición de origen se procesaron y desde dónde reanudar/reproducir. |
+| `source_records_read`, `unique_records_processed`, `duplicate_records_skipped`, `destination_rows_upserted` | INTEGER | Reconcilia origen, deduplicación y destino para detectar huecos, duplicados o carga incompleta. |
+| `error_code`, `error_summary` | TEXT NULL | Deja rastro de errores sin almacenar secretos ni payloads personales/sensibles. |
+| `initiated_by` y `request_id` (nullable) | TEXT / UUID NULL | Permite auditar un disparo manual y correlacionarlo con los logs de API sin tratar `requestId` como identidad ni clave de venta. |
 
 Registrar el inicio antes de extraer, y cierre, estado, conteos y error seguro al terminar. Si una caída impide escribir el cierre, detectar el registro con `finished_at` nulo y `started_at` antiguo y conciliarlo con el estado de Prefect antes de relanzar.
 
