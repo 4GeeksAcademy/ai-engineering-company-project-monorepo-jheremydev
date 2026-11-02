@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from routers import incidents, inventory, telemetry, telemetry_report
+from reporting.router import router as reporting_router
 from storage import telemetry as telemetry_emitter
 
 
@@ -131,6 +132,7 @@ app.include_router(incidents.router)
 app.include_router(inventory.router)
 app.include_router(telemetry.router)
 app.include_router(telemetry_report.router)
+app.include_router(reporting_router)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["health"])
