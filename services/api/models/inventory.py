@@ -76,3 +76,12 @@ class MovimientoCreate(BaseModel):
 
 class Movimiento(MovimientoCreate):
     id: str
+
+
+class StockResponse(BaseModel):
+    articulo_id: str
+    local: str
+    stock: Decimal
+    unidad_medida: str
+    punto_reorden: Decimal
+    bajo_punto_reorden: bool

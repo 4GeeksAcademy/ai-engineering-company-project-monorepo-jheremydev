@@ -6,6 +6,7 @@ export default function SelectField<T extends string>({
   placeholder,
   required,
   disabled,
+  name,
 }: {
   label: string
   value: T | ''
@@ -14,11 +15,12 @@ export default function SelectField<T extends string>({
   placeholder?: string
   required?: boolean
   disabled?: boolean
+  name?: string
 }) {
   return (
     <label className="field">
       <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} required={required} disabled={disabled}>
+      <select name={name} value={value} onChange={(event) => onChange(event.target.value)} required={required} disabled={disabled}>
         {placeholder !== undefined && <option value="">{placeholder}</option>}
         {options.map((option) => {
           const optionValue = typeof option === 'string' ? option : option.value

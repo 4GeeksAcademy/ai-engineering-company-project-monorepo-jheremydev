@@ -4,6 +4,9 @@ import './index.css'
 import '../../../packages/shared/tokens.css'
 import './App.css'
 import App from './App.tsx'
+import { installGlobalErrorTracking } from './services/telemetryErrors'
+
+installGlobalErrorTracking()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

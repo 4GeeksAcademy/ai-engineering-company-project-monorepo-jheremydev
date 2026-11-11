@@ -1,0 +1,367 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Brasaland telemetry event 1.0.0",
+  "description": "Design only. Closed envelope and 47 closed event payloads. x-delivery is a processing-policy annotation, not emitted data. Descriptions on referenced definitions apply to each use. Fields absent from required are optional and omitted when unknown.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["eventId", "timestamp", "sessionId", "userId", "event_type", "schemaVersion", "requestId", "properties", "source", "environment"],
+  "properties": {
+    "eventId": {"$ref": "#/definitions/_uuid"},
+    "timestamp": {"type": "string", "format": "date-time", "pattern": "Z$", "description": "UTC observation time, not the editable movement date. ISO 8601/RFC 3339."},
+    "sessionId": {"anyOf": [{"$ref": "#/definitions/_uuid"}, {"type": "null"}], "description": "Anonymous browser-tab identifier, never an authenticated session. Null for API requests without validated browser context."},
+    "userId": {"type": "null", "description": "No authentication exists. Never derive from autor, IP, session or device."},
+    "event_type": {"type": "string", "description": "Exact Phase 1 name, discriminated by oneOf."},
+    "schemaVersion": {"const": "1.0.0", "description": "Contract version, independent of application release."},
+    "requestId": {"anyOf": [{"$ref": "#/definitions/_uuid"}, {"type": "null"}], "description": "One validated HTTP request identifier, shared with logs. Null for non-request or multi-request activity."},
+    "properties": {"type": "object", "description": "Allowlist selected by event_type; no arbitrary attributes."},
+    "source": {"enum": ["browser", "api", "probe"], "description": "Actual emitter, restricted further by each variant."},
+    "environment": {"enum": ["production", "development", "test"], "description": "Trusted deployment configuration, never a client URL."}
+  },
+  "allOf": [
+    {"if": {"properties": {"source": {"const": "browser"}}}, "then": {"properties": {"sessionId": {"$ref": "#/definitions/_uuid"}}}},
+    {"if": {"properties": {"source": {"const": "probe"}}}, "then": {"properties": {"sessionId": {"type": "null"}, "requestId": {"$ref": "#/definitions/_uuid"}}}},
+    {"if": {"properties": {"source": {"const": "api"}}}, "then": {"properties": {"requestId": {"$ref": "#/definitions/_uuid"}}}},
+    {"if": {"properties": {"event_type": {"enum": ["navigation.section_viewed", "inventory.article_selected", "incident.detail_opened", "incident.filters_applied", "form.started", "form.abandoned", "inventory.prerequisite_blocked", "incident.edit_discarded", "form.validation_blocked", "inventory.reorder_indicator_displayed", "performance.backoffice_initial_load_completed", "performance.inventory_view_load_completed", "performance.incident_detail_load_completed", "performance.reorder_batch_completed"]}}}, "then": {"properties": {"requestId": {"type": "null"}}}},
+    {"if": {"properties": {"event_type": {"enum": ["performance.client_request_completed", "incident.filter_empty_result", "api.network_failed", "api.response_decode_failed"]}}}, "then": {"properties": {"requestId": {"$ref": "#/definitions/_uuid"}}}},
+    {"if": {"properties": {"event_type": {"const": "inventory.stock_lookup_completed"}}}, "then": {"allOf": [{"if": {"properties": {"properties": {"properties": {"observationCount": {"minimum": 2}}}}}, "then": {"properties": {"requestId": {"type": "null"}}}, "else": {"properties": {"requestId": {"$ref": "#/definitions/_uuid"}}}}]}},
+    {"if": {"properties": {"source": {"const": "api"}, "event_type": {"const": "operations.health_check_completed"}}}, "then": {"properties": {"properties": {"properties": {"outcome": {"enum": ["success", "http_error"]}}}}}}
+  ],
+  "oneOf": [
+    {"properties": {"event_type": {"const": "inventory.movement_received"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/inventory.movement_received"}}},
+    {"properties": {"event_type": {"const": "inventory.movement_validation_failed"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/inventory.movement_validation_failed"}}},
+    {"properties": {"event_type": {"const": "inventory.movement_reference_rejected"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/inventory.movement_reference_rejected"}}},
+    {"properties": {"event_type": {"const": "inventory.movement_negative_stock_rejected"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/inventory.movement_negative_stock_rejected"}}},
+    {"properties": {"event_type": {"const": "inventory.movement_created"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/inventory.movement_created"}}},
+    {"properties": {"event_type": {"const": "inventory.reorder_signal_active"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/inventory.reorder_signal_active"}}},
+    {"properties": {"event_type": {"const": "inventory.direct_stock_write_rejected"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/inventory.direct_stock_write_rejected"}}},
+    {"properties": {"event_type": {"const": "inventory.article_created"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/inventory.article_created"}}},
+    {"properties": {"event_type": {"const": "inventory.local_created"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/inventory.local_created"}}},
+    {"properties": {"event_type": {"const": "inventory.catalog_validation_failed"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/inventory.catalog_validation_failed"}}},
+    {"properties": {"event_type": {"const": "inventory.stock_lookup_completed"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/inventory.stock_lookup_completed"}}},
+    {"properties": {"event_type": {"const": "inventory.movement_history_loaded"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/inventory.movement_history_loaded"}}},
+    {"properties": {"event_type": {"const": "inventory.reorder_indicator_displayed"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/inventory.reorder_indicator_displayed"}}},
+    {"properties": {"event_type": {"const": "incident.created"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/incident.created"}}},
+    {"properties": {"event_type": {"const": "incident.validation_failed"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/incident.validation_failed"}}},
+    {"properties": {"event_type": {"const": "incident.status_changed"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/incident.status_changed"}}},
+    {"properties": {"event_type": {"const": "incident.area_changed"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/incident.area_changed"}}},
+    {"properties": {"event_type": {"const": "incident.update_noop"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/incident.update_noop"}}},
+    {"properties": {"event_type": {"const": "incident.history_loaded"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/incident.history_loaded"}}},
+    {"properties": {"event_type": {"const": "incident.not_found"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/incident.not_found"}}},
+    {"properties": {"event_type": {"const": "navigation.section_viewed"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/navigation.section_viewed"}}},
+    {"properties": {"event_type": {"const": "inventory.article_selected"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/inventory.article_selected"}}},
+    {"properties": {"event_type": {"const": "incident.detail_opened"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/incident.detail_opened"}}},
+    {"properties": {"event_type": {"const": "incident.filters_applied"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/incident.filters_applied"}}},
+    {"properties": {"event_type": {"const": "incident.filter_empty_result"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/incident.filter_empty_result"}}},
+    {"properties": {"event_type": {"const": "form.started"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/form.started"}}},
+    {"properties": {"event_type": {"const": "form.abandoned"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/form.abandoned"}}},
+    {"properties": {"event_type": {"const": "inventory.prerequisite_blocked"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/inventory.prerequisite_blocked"}}},
+    {"properties": {"event_type": {"const": "incident.edit_discarded"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/incident.edit_discarded"}}},
+    {"properties": {"event_type": {"const": "form.validation_blocked"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/form.validation_blocked"}}},
+    {"properties": {"event_type": {"const": "performance.api_response_timed"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/performance.api_response_timed"}}},
+    {"properties": {"event_type": {"const": "performance.client_request_completed"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/performance.client_request_completed"}}},
+    {"properties": {"event_type": {"const": "performance.backoffice_initial_load_completed"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/performance.backoffice_initial_load_completed"}}},
+    {"properties": {"event_type": {"const": "performance.inventory_view_load_completed"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/performance.inventory_view_load_completed"}}},
+    {"properties": {"event_type": {"const": "performance.incident_detail_load_completed"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/performance.incident_detail_load_completed"}}},
+    {"properties": {"event_type": {"const": "performance.reorder_batch_completed"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/performance.reorder_batch_completed"}}},
+    {"properties": {"event_type": {"const": "performance.inventory_cache_lookup"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/performance.inventory_cache_lookup"}}},
+    {"properties": {"event_type": {"const": "performance.inventory_cache_invalidated"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/performance.inventory_cache_invalidated"}}},
+    {"properties": {"event_type": {"const": "frontend.uncaught_exception"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/frontend.uncaught_exception"}}},
+    {"properties": {"event_type": {"const": "frontend.unhandled_rejection"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/frontend.unhandled_rejection"}}},
+    {"properties": {"event_type": {"const": "frontend.lazy_module_failed"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/frontend.lazy_module_failed"}}},
+    {"properties": {"event_type": {"const": "api.network_failed"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/api.network_failed"}}},
+    {"properties": {"event_type": {"const": "api.response_decode_failed"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/api.response_decode_failed"}}},
+    {"properties": {"event_type": {"const": "ui.operation_failed"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/ui.operation_failed"}}},
+    {"properties": {"event_type": {"const": "ui.post_write_refresh_failed"}, "source": {"const": "browser"}, "properties": {"$ref": "#/definitions/ui.post_write_refresh_failed"}}},
+    {"properties": {"event_type": {"const": "api.unhandled_exception"}, "source": {"const": "api"}, "properties": {"$ref": "#/definitions/api.unhandled_exception"}}},
+    {"properties": {"event_type": {"const": "operations.health_check_completed"}, "source": {"enum": ["probe", "api"]}, "properties": {"$ref": "#/definitions/operations.health_check_completed"}}}
+  ],
+  "definitions": {
+    "_uuid": {"type": "string", "format": "uuid", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", "description": "Lowercase random UUID v4, validated before emission. No names or arbitrary caller-supplied identifiers."},
+    "_articleId": {"allOf": [{"$ref": "#/definitions/_uuid"}], "description": "Opaque ID of an existing backend article. Internal operational data; never article name."},
+    "_localId": {"allOf": [{"$ref": "#/definitions/_uuid"}], "description": "Opaque ID of an existing backend local. Restricted operational location reference; no name, address or coordinates."},
+    "_movementId": {"allOf": [{"$ref": "#/definitions/_uuid"}], "description": "Opaque ID of a successfully registered movement, not the event identifier."},
+    "_incidentId": {"allOf": [{"$ref": "#/definitions/_uuid"}], "description": "Opaque ID of an existing incident, never an author or report text."},
+    "_formAttemptId": {"allOf": [{"$ref": "#/definitions/_uuid"}], "description": "Anonymous form editing attempt. Optional on API events without validated browser context; never an idempotency key."},
+    "_decimal": {"type": "string", "maxLength": 64, "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$", "description": "Finite exact decimal string, canonical notation without exponent. Confidential inventory quantity; no currency."},
+    "_nonzeroDecimal": {"type": "string", "maxLength": 64, "pattern": "^-?([1-9][0-9]*(\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$", "description": "Nonzero exact movement quantity; positive entry/exit amount or signed adjustment. Validate direction in emitter."},
+    "_nonnegativeDecimal": {"type": "string", "maxLength": 64, "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$", "description": "Finite nonnegative stock or reorder threshold, as exact decimal string."},
+    "_count": {"type": "integer", "minimum": 0, "maximum": 2147483647, "description": "Nonnegative count, not an identifier or free-form value."},
+    "_durationMs": {"type": "number", "minimum": 0, "maximum": 86400000, "description": "Elapsed milliseconds from a monotonic clock; finite, maximum one day. Not a wall-clock timestamp."},
+    "_movementType": {"enum": ["entrada", "salida", "ajuste"], "description": "Validated movement direction from the actual domain enum."},
+    "_unit": {"enum": ["kg", "g", "l", "ml", "unidad"], "description": "Actual article unit enum. No implicit conversion or cross-unit summation."},
+    "_category": {"enum": ["carne", "verduras", "salsas", "bebidas", "packaging", "productos de limpieza"], "description": "Article category enum; excludes article names."},
+    "_status": {"enum": ["Abierta", "En progreso", "Escalada", "Resuelta", "Cerrada"], "description": "Existing incident status enum; no assumed transition sequence."},
+    "_severity": {"enum": ["Baja", "Media", "Alta", "Crítica"], "description": "Existing incident severity enum, not personal data."},
+    "_area": {"enum": ["Operaciones de Restaurante", "Compras y Proveedores", "Marketing y Experiencia Digital", "Personas y Cultura", "Formación y Estándares de Calidad", "Tecnología", "Dirección Ejecutiva"], "description": "Responsible department enum, never an employee name."},
+    "_channel": {"enum": ["WhatsApp", "Teléfono", "Email", "Presencial / en local", "Sistema POS"], "description": "Report channel enum, never phone number or email address."},
+    "_incidentType": {"enum": ["Quiebre de stock", "Merma anómala", "Proveedor", "Ventas / POS", "Personal / RRHH", "Calidad / Formación", "Marketing / Digital"], "description": "Incident classification enum, not report contents."},
+    "_method": {"enum": ["GET", "POST", "PATCH", "PUT", "DELETE", "HEAD", "OPTIONS"], "description": "Normalized HTTP verb, never arbitrary request text."},
+    "_route": {"enum": ["/health", "/incidents", "/incidents/{incidencia_id}", "/inventory/articles", "/inventory/articles/{article_id}", "/inventory/locals", "/inventory/movements", "/inventory/movements/{movement_id}", "/inventory/stock", "other"], "description": "Allowlisted route template only. Remove query, fragment, host and dynamic IDs. Unknown routes map to other."},
+    "_httpStatus": {"type": "integer", "minimum": 100, "maximum": 599, "description": "Actual HTTP status. Omit if no response exists; never invent a status for network failures."},
+    "_field": {"enum": ["articulo_id", "local", "tipo", "cantidad", "autor", "fecha", "motivo", "nombre", "categoria", "unidad_medida", "punto_reorden", "estado", "severidad", "area_responsable", "canal", "body", "query", "unknown"], "description": "Known field name only; unknown paths map to unknown. Never field values or arbitrary nested paths."},
+    "_rule": {"enum": ["required", "invalid_type", "invalid_enum", "invalid_datetime", "non_finite", "positive_required", "nonzero_required", "nonnegative_required", "empty_text", "malformed_json", "other"], "description": "Sanitized validation rule code, not a validator message or input value."},
+    "_issues": {"type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "description": "At most 16 distinct sanitized field/rule pairs. Truncate excess pairs, not values; never include raw errors.", "items": {"type": "object", "additionalProperties": false, "required": ["field", "rule"], "properties": {"field": {"$ref": "#/definitions/_field"}, "rule": {"$ref": "#/definitions/_rule"}}}},
+    "_formType": {"enum": ["incident_create", "article_create", "local_create", "movement_create", "incident_update"], "description": "Known UI form, not a DOM selector or field content."},
+    "_operation": {"enum": ["initial_load", "inventory_load", "incident_create", "incident_update", "article_create", "local_create", "movement_create", "stock_lookup", "history_load", "reorder_batch", "incident_detail_load", "incident_list_load"], "description": "Known operation from existing UI handlers; no arbitrary function names."},
+    "_view": {"enum": ["incidents", "inventory"], "description": "Existing operational tab, not a full URL."},
+    "_module": {"enum": ["app", "inventory", "incident_detail", "api_client", "unknown"], "description": "Controlled module label, never a file path or stack trace."},
+    "_errorFamily": {"enum": ["type_error", "reference_error", "range_error", "syntax_error", "network_error", "chunk_load_error", "unknown"], "description": "Mapped exception family; unknown custom exceptions map to unknown without their message."},
+    "_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 of release, controlled module, family and sanitized internal code only. Never hash raw message, stack, user input or IP. Omit if sanitization cannot be ensured."},
+    "_release": {"type": "string", "maxLength": 32, "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$", "description": "Configured application release number, excluding branch names, usernames and URLs."},
+    "_outcome": {"enum": ["success", "error", "cancelled"], "description": "Observed completion result. Cancellation is not a backend business rejection."},
+    "_loadKind": {"enum": ["first_visit", "revisit", "reload"], "description": "View/document load context used to compare cold and repeated loads."},
+    "_filters": {"type": "object", "additionalProperties": false, "description": "Only validated incident filter enums; absence means no filter. Never a raw query string.", "properties": {"estado": {"$ref": "#/definitions/_status"}, "severidad": {"$ref": "#/definitions/_severity"}, "area_responsable": {"$ref": "#/definitions/_area"}}},
+    "_changedFields": {"type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": {"enum": ["estado", "area_responsable"]}, "description": "Names of unsaved tracking fields, never their text or author input."},
+    "_querySource": {"enum": ["manual", "reorder_batch", "post_write"], "description": "Actual browser stock lookup trigger; distinguish manual demand from automatic refresh."},
+    "_cache": {"enum": ["articles", "locals"], "description": "Existing per-process catalog cache. No stock cache is assumed."},
+
+    "inventory.movement_received": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch",
+      "description": "POST /inventory/movements arrival before model validation. Not a persisted movement. Only include movementType if safely parsed as a known enum; do not inspect malformed bodies for telemetry.",
+      "required": ["route", "method"],
+      "properties": {"route": {"const": "/inventory/movements", "description": "Fixed received endpoint."}, "method": {"const": "POST", "description": "Movement submission verb."}, "movementType": {"$ref": "#/definitions/_movementType"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "inventory.movement_validation_failed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream",
+      "description": "Movement request rejected by schema or quantity validation, before storage mutation. No raw validation errors or submitted values.",
+      "required": ["httpStatus", "issues"],
+      "properties": {"httpStatus": {"const": 422, "description": "Actual validation response."}, "issues": {"$ref": "#/definitions/_issues"}, "movementType": {"$ref": "#/definitions/_movementType"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "inventory.movement_reference_rejected": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream",
+      "description": "Movement rejected for missing article or local. Never emit the untrusted missing identifier or error detail.",
+      "required": ["httpStatus", "missingEntity", "movementType"],
+      "properties": {"httpStatus": {"const": 404, "description": "Reference lookup response."}, "missingEntity": {"enum": ["article", "local"], "description": "First missing reference detected by storage."}, "movementType": {"$ref": "#/definitions/_movementType"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "inventory.movement_negative_stock_rejected": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream",
+      "description": "Validated outgoing movement or negative adjustment would leave stock below zero; nothing appended. Emitter must verify stock + signed delta < 0.",
+      "required": ["httpStatus", "articleId", "localId", "movementType", "quantity", "stockBefore", "unit"],
+      "properties": {"httpStatus": {"const": 409, "description": "Negative-stock conflict response."}, "articleId": {"$ref": "#/definitions/_articleId"}, "localId": {"$ref": "#/definitions/_localId"}, "movementType": {"enum": ["salida", "ajuste"], "description": "Only these types can decrease stock."}, "quantity": {"$ref": "#/definitions/_nonzeroDecimal"}, "stockBefore": {"$ref": "#/definitions/_nonnegativeDecimal"}, "unit": {"$ref": "#/definitions/_unit"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}},
+      "allOf": [{"if": {"properties": {"movementType": {"const": "salida"}}}, "then": {"properties": {"quantity": {"pattern": "^[^-]"}}}, "else": {"properties": {"quantity": {"pattern": "^-"}}}}]
+    },
+    "inventory.movement_created": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream",
+      "description": "Movement actually appended and acknowledged with 201. Entry/exit quantity positive, adjustment signed. Emitter verifies nonnegative stockAfter using Decimal, not telemetry arithmetic.",
+      "required": ["httpStatus", "movementId", "articleId", "localId", "movementType", "quantity", "stockAfter", "unit"],
+      "properties": {"httpStatus": {"const": 201, "description": "Creation response."}, "movementId": {"$ref": "#/definitions/_movementId"}, "articleId": {"$ref": "#/definitions/_articleId"}, "localId": {"$ref": "#/definitions/_localId"}, "movementType": {"$ref": "#/definitions/_movementType"}, "quantity": {"$ref": "#/definitions/_nonzeroDecimal"}, "stockAfter": {"$ref": "#/definitions/_nonnegativeDecimal"}, "unit": {"$ref": "#/definitions/_unit"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}},
+      "allOf": [{"if": {"properties": {"movementType": {"enum": ["entrada", "salida"]}}}, "then": {"properties": {"quantity": {"pattern": "^[^-]"}}}}]
+    },
+    "inventory.reorder_signal_active": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream",
+      "description": "Observed successful stock response with stock strictly below threshold. Not a threshold crossing, notification sent or unique shortage episode. Emitter checks stock < reorderPoint.",
+      "required": ["articleId", "localId", "stock", "reorderPoint", "unit", "belowReorderPoint"],
+      "properties": {"articleId": {"$ref": "#/definitions/_articleId"}, "localId": {"$ref": "#/definitions/_localId"}, "stock": {"$ref": "#/definitions/_nonnegativeDecimal"}, "reorderPoint": {"$ref": "#/definitions/_nonnegativeDecimal"}, "unit": {"$ref": "#/definitions/_unit"}, "belowReorderPoint": {"const": true, "description": "Only active signal evaluations belong to this event."}}
+    },
+    "inventory.direct_stock_write_rejected": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream",
+      "description": "Method-not-allowed response to a write verb on the exact stock read route. Not evidence of malicious intent or authenticated access.",
+      "required": ["route", "method", "httpStatus"],
+      "properties": {"route": {"const": "/inventory/stock", "description": "Exact route only; no query string."}, "method": {"enum": ["POST", "PUT", "PATCH", "DELETE"], "description": "Rejected write verb."}, "httpStatus": {"const": 405, "description": "Framework method rejection, not a stock validator error."}}
+    },
+    "inventory.article_created": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Successful article catalog creation, excluding its free-text name.",
+      "required": ["articleId", "category", "unit", "reorderPoint"],
+      "properties": {"articleId": {"$ref": "#/definitions/_articleId"}, "category": {"$ref": "#/definitions/_category"}, "unit": {"$ref": "#/definitions/_unit"}, "reorderPoint": {"$ref": "#/definitions/_nonnegativeDecimal"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "inventory.local_created": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Successful local catalog creation. No local name, country or physical address.",
+      "required": ["localId"], "properties": {"localId": {"$ref": "#/definitions/_localId"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "inventory.catalog_validation_failed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Article/local creation 422 mapped to controlled field/rule pairs.",
+      "required": ["entity", "httpStatus", "issues"],
+      "properties": {"entity": {"enum": ["article", "local"], "description": "Catalog being created."}, "httpStatus": {"const": 422, "description": "Validation rejection."}, "issues": {"$ref": "#/definitions/_issues"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "inventory.stock_lookup_completed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Successful browser stock lookup, separating manual demand, automatic batch and post-write refresh.",
+      "required": ["articleId", "localId", "stock", "unit", "belowReorderPoint", "querySource", "observationCount", "windowMs"],
+      "properties": {"articleId": {"$ref": "#/definitions/_articleId"}, "localId": {"$ref": "#/definitions/_localId"}, "stock": {"$ref": "#/definitions/_nonnegativeDecimal"}, "unit": {"$ref": "#/definitions/_unit"}, "belowReorderPoint": {"type": "boolean", "description": "Last returned flag in the window; not a frontend threshold calculation."}, "querySource": {"$ref": "#/definitions/_querySource"}, "observationCount": {"type": "integer", "minimum": 1, "maximum": 2147483647, "description": "Successful lookups represented, not changes in stock. Manual/post-write events always represent one lookup."}, "windowMs": {"type": "integer", "minimum": 0, "maximum": 60000, "description": "Aggregation span in milliseconds. Zero for a single immediate lookup; stock is the last observed value, never an average."}},
+      "allOf": [{"if": {"properties": {"querySource": {"enum": ["manual", "post_write"]}}}, "then": {"properties": {"observationCount": {"const": 1}, "windowMs": {"const": 0}}}}]
+    },
+    "inventory.movement_history_loaded": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Successful list_movements response; quantify result size and actual API filters without copying movements.",
+      "required": ["rowCount", "articleFilter", "localFilter"],
+      "properties": {"rowCount": {"$ref": "#/definitions/_count"}, "articleFilter": {"type": "boolean", "description": "Whether article filtering was requested."}, "localFilter": {"type": "boolean", "description": "Whether local filtering was requested."}}
+    },
+    "inventory.reorder_indicator_displayed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "An active signal actually displayed, not every React render and not proof of operator attention.",
+      "required": ["articleId", "localId", "surface"],
+      "properties": {"articleId": {"$ref": "#/definitions/_articleId"}, "localId": {"$ref": "#/definitions/_localId"}, "surface": {"enum": ["article_list", "stock_result"], "description": "Existing badge surface in InventoryManager."}}
+    },
+    "incident.created": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream", "description": "Incident registered with initial Abierta status; exclude author and all free text.",
+      "required": ["incidentId", "channel", "incidentType", "severity", "area", "status"],
+      "properties": {"incidentId": {"$ref": "#/definitions/_incidentId"}, "channel": {"$ref": "#/definitions/_channel"}, "incidentType": {"$ref": "#/definitions/_incidentType"}, "severity": {"$ref": "#/definitions/_severity"}, "area": {"$ref": "#/definitions/_area"}, "status": {"const": "Abierta", "description": "Actual initial state imposed by router."}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "incident.validation_failed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "422 on incident creation, update or filter validation. Do not claim empty author is rejected by backend.",
+      "required": ["method", "route", "httpStatus", "issues"],
+      "properties": {"method": {"enum": ["POST", "PATCH", "GET"], "description": "Operation whose contract was violated."}, "route": {"enum": ["/incidents", "/incidents/{incidencia_id}"], "description": "Incident route template without identifier or filters."}, "httpStatus": {"const": 422, "description": "Validation response."}, "issues": {"$ref": "#/definitions/_issues"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "incident.status_changed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream", "description": "Effective status change with a history record; emitter checks oldStatus != newStatus. Area and severity are current known incident enums.",
+      "required": ["incidentId", "oldStatus", "newStatus", "area", "severity"],
+      "properties": {"incidentId": {"$ref": "#/definitions/_incidentId"}, "oldStatus": {"$ref": "#/definitions/_status"}, "newStatus": {"$ref": "#/definitions/_status"}, "area": {"$ref": "#/definitions/_area"}, "severity": {"$ref": "#/definitions/_severity"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "incident.area_changed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Effective department reassignment; emitter checks oldArea != newArea. No staff identity.",
+      "required": ["incidentId", "oldArea", "newArea", "incidentType"],
+      "properties": {"incidentId": {"$ref": "#/definitions/_incidentId"}, "oldArea": {"$ref": "#/definitions/_area"}, "newArea": {"$ref": "#/definitions/_area"}, "incidentType": {"$ref": "#/definitions/_incidentType"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "incident.update_noop": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "PATCH succeeds but creates no status/area history entry, although updated_at changes.",
+      "required": ["incidentId", "status", "area"],
+      "properties": {"incidentId": {"$ref": "#/definitions/_incidentId"}, "status": {"$ref": "#/definitions/_status"}, "area": {"$ref": "#/definitions/_area"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "incident.history_loaded": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Sorted history included in successful detail response; never include history authors or values as arbitrary text.",
+      "required": ["incidentId", "changeCount"],
+      "properties": {"incidentId": {"$ref": "#/definitions/_incidentId"}, "changeCount": {"$ref": "#/definitions/_count"}}
+    },
+    "incident.not_found": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream", "description": "Missing incident on read/update. Omit untrusted requested ID and error message.",
+      "required": ["method", "httpStatus"],
+      "properties": {"method": {"enum": ["GET", "PATCH"], "description": "Detail lookup versus attempted update."}, "httpStatus": {"const": 404, "description": "Missing incident response."}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "navigation.section_viewed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Initial tab or effective activeView change, not repeated clicks on the active tab.",
+      "required": ["view", "trigger"],
+      "properties": {"view": {"$ref": "#/definitions/_view"}, "trigger": {"enum": ["initial", "tab_change"], "description": "Initial display or actual tab transition."}}
+    },
+    "inventory.article_selected": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Explicit article choice; exclude automatic first-item defaults.",
+      "required": ["articleId", "surface"],
+      "properties": {"articleId": {"$ref": "#/definitions/_articleId"}, "surface": {"enum": ["article_list", "movement_form"], "description": "Actual selection control, not stock query selector."}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "incident.detail_opened": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Detail opened from a table interaction or automatically after successful creation.",
+      "required": ["incidentId", "trigger"],
+      "properties": {"incidentId": {"$ref": "#/definitions/_incidentId"}, "trigger": {"enum": ["table_click", "table_enter", "after_create"], "description": "Observed entry point into the drawer."}}
+    },
+    "incident.filters_applied": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Stable incident filters actually applied; debounce telemetry only, not existing UI requests.",
+      "required": ["filters", "changedFilter"],
+      "properties": {"filters": {"$ref": "#/definitions/_filters"}, "changedFilter": {"enum": ["estado", "severidad", "area_responsable"], "description": "Last changed known filter."}}
+    },
+    "incident.filter_empty_result": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Successful filtered request returned no rows. Not a loading/error state; emitter checks at least one active filter.",
+      "required": ["filters", "rowCount"],
+      "properties": {"filters": {"allOf": [{"$ref": "#/definitions/_filters"}], "minProperties": 1, "description": "Nonempty set of actual validated filters."}, "rowCount": {"const": 0, "description": "Empty successful result, not missing response."}}
+    },
+    "form.started": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "First real edit of a form attempt, not initial display or each keystroke.",
+      "required": ["formType", "formAttemptId"],
+      "properties": {"formType": {"$ref": "#/definitions/_formType"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "form.abandoned": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Inferred discard of an edited creation form without confirmed success or in-flight write. Exclude preserved App form and use incident.edit_discarded for drawer edits.",
+      "required": ["formType", "formAttemptId", "reason", "elapsedMs", "inferred"],
+      "properties": {"formType": {"enum": ["incident_create", "article_create", "local_create", "movement_create"], "description": "Creation form actually discarded, not merely hidden."}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}, "reason": {"enum": ["tab_change", "page_exit"], "description": "Observed discard boundary; no inferred employee intention."}, "elapsedMs": {"$ref": "#/definitions/_durationMs"}, "inferred": {"const": true, "description": "Browser lifecycle inference, not proof no write occurred."}}
+    },
+    "inventory.prerequisite_blocked": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Movement action disabled after initial load because a catalog is empty, not while loading or saving.",
+      "required": ["missing"], "properties": {"missing": {"enum": ["articles", "locals", "both"], "description": "Missing catalog prerequisite, never location names."}}
+    },
+    "incident.edit_discarded": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Unsaved status/area edit lost by drawer closure or replacement, excluding writes in flight.",
+      "required": ["incidentId", "formAttemptId", "changedFields", "reason"],
+      "properties": {"incidentId": {"$ref": "#/definitions/_incidentId"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}, "changedFields": {"$ref": "#/definitions/_changedFields"}, "reason": {"enum": ["detail_close", "selection_change", "tab_change", "page_exit"], "description": "Actual lifecycle boundary losing the edits."}}
+    },
+    "form.validation_blocked": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Native invalid control or explicit blank-author guard prevents submission before API. No input values.",
+      "required": ["formType", "formAttemptId", "field", "rule"],
+      "properties": {"formType": {"$ref": "#/definitions/_formType"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}, "field": {"$ref": "#/definitions/_field"}, "rule": {"$ref": "#/definitions/_rule"}}
+    },
+    "performance.api_response_timed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Existing middleware timing, adapted to sanitized route templates. Preserve failed timings, without exception bodies.",
+      "required": ["method", "route", "httpStatus", "durationMs"],
+      "properties": {"method": {"$ref": "#/definitions/_method"}, "route": {"$ref": "#/definitions/_route"}, "httpStatus": {"$ref": "#/definitions/_httpStatus"}, "durationMs": {"$ref": "#/definitions/_durationMs"}}
+    },
+    "performance.client_request_completed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Browser HTTP attempt including body decode, with optional status only when a response was observed.",
+      "required": ["method", "route", "durationMs", "outcome"],
+      "properties": {"method": {"$ref": "#/definitions/_method"}, "route": {"$ref": "#/definitions/_route"}, "durationMs": {"$ref": "#/definitions/_durationMs"}, "outcome": {"$ref": "#/definitions/_outcome"}, "httpStatus": {"$ref": "#/definitions/_httpStatus"}}
+    },
+    "performance.backoffice_initial_load_completed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Initial incidents view usable or definitively failed. Multi-request measurement has requestId null.",
+      "required": ["durationMs", "outcome", "requestCount", "duplicateRequestCount", "loadKind"],
+      "properties": {"durationMs": {"$ref": "#/definitions/_durationMs"}, "outcome": {"$ref": "#/definitions/_outcome"}, "requestCount": {"$ref": "#/definitions/_count"}, "duplicateRequestCount": {"allOf": [{"$ref": "#/definitions/_count"}], "description": "Extra equivalent requests for the same initial data, distinguished from development StrictMode effects."}, "loadKind": {"$ref": "#/definitions/_loadKind"}, "documentLoadMs": {"allOf": [{"$ref": "#/definitions/_durationMs"}], "description": "Optional navigation-entry document load duration if observable."}}
+    },
+    "performance.inventory_view_load_completed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Tab selection through lazy module and initial inventory data; batch badge completion measured separately. requestId null.",
+      "required": ["durationMs", "outcome", "loadKind"],
+      "properties": {"durationMs": {"$ref": "#/definitions/_durationMs"}, "moduleLoadMs": {"allOf": [{"$ref": "#/definitions/_durationMs"}], "description": "Elapsed lazy-module wait, zero if already available."}, "dataLoadMs": {"allOf": [{"$ref": "#/definitions/_durationMs"}], "description": "Elapsed initial articles/movements/locals data phase."}, "outcome": {"$ref": "#/definitions/_outcome"}, "loadKind": {"$ref": "#/definitions/_loadKind"}}
+    },
+    "performance.incident_detail_load_completed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Drawer selection through module/data availability or failure, separate from tab load. requestId null for combined phases.",
+      "required": ["durationMs", "outcome", "loadKind"],
+      "properties": {"durationMs": {"$ref": "#/definitions/_durationMs"}, "moduleLoadMs": {"allOf": [{"$ref": "#/definitions/_durationMs"}], "description": "Lazy detail-module wait, zero when cached."}, "dataLoadMs": {"allOf": [{"$ref": "#/definitions/_durationMs"}], "description": "Elapsed detail/history data phase."}, "outcome": {"$ref": "#/definitions/_outcome"}, "loadKind": {"$ref": "#/definitions/_loadKind"}}
+    },
+    "performance.reorder_batch_completed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "One existing frontend fan-out completion, failure or cancellation; emitter verifies successfulCount + failedCount <= articleCount. No single requestId.",
+      "required": ["localId", "articleCount", "successfulCount", "failedCount", "durationMs", "outcome"],
+      "properties": {"localId": {"$ref": "#/definitions/_localId"}, "articleCount": {"$ref": "#/definitions/_count"}, "successfulCount": {"$ref": "#/definitions/_count"}, "failedCount": {"$ref": "#/definitions/_count"}, "durationMs": {"$ref": "#/definitions/_durationMs"}, "outcome": {"$ref": "#/definitions/_outcome"}}
+    },
+    "performance.inventory_cache_lookup": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "One cache get_or_load outcome, measuring lookup/load wait without serializing cached values.",
+      "required": ["cache", "result", "durationMs", "ttlSeconds"],
+      "properties": {"cache": {"$ref": "#/definitions/_cache"}, "result": {"enum": ["hit", "miss"], "description": "Whether a still-valid entry was used."}, "durationMs": {"$ref": "#/definitions/_durationMs"}, "ttlSeconds": {"type": "integer", "minimum": 1, "maximum": 86400, "description": "Configured cache TTL; currently articles=300, locals=900."}}
+    },
+    "performance.inventory_cache_invalidated": {
+      "type": "object", "additionalProperties": false, "x-delivery": "batch", "description": "Catalog invalidation after successful creation; do not claim movements invalidate a stock cache.",
+      "required": ["cache", "reason"],
+      "properties": {"cache": {"$ref": "#/definitions/_cache"}, "reason": {"enum": ["article_created", "local_created"], "description": "Known successful-write invalidation trigger."}}
+    },
+    "frontend.uncaught_exception": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream", "description": "Execution/render exception escaping local handlers; future global/boundary capture. Never raw stack or message.",
+      "required": ["module", "errorFamily", "releaseVersion"],
+      "properties": {"module": {"$ref": "#/definitions/_module"}, "errorFamily": {"$ref": "#/definitions/_errorFamily"}, "releaseVersion": {"$ref": "#/definitions/_release"}, "errorFingerprint": {"$ref": "#/definitions/_fingerprint"}}
+    },
+    "frontend.unhandled_rejection": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream", "description": "Rejected promise without handler, not a fetch error already handled by a form. Omit arbitrary rejection values.",
+      "required": ["module", "errorFamily", "releaseVersion"],
+      "properties": {"module": {"$ref": "#/definitions/_module"}, "errorFamily": {"$ref": "#/definitions/_errorFamily"}, "releaseVersion": {"$ref": "#/definitions/_release"}, "errorFingerprint": {"$ref": "#/definitions/_fingerprint"}}
+    },
+    "frontend.lazy_module_failed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream", "description": "Failed lazy code download, not failed API data loading; use this most specific event for the occurrence.",
+      "required": ["module", "releaseVersion"],
+      "properties": {"module": {"enum": ["inventory", "incident_detail"], "description": "One of the two existing lazy imports; never an asset URL."}, "releaseVersion": {"$ref": "#/definitions/_release"}, "errorFingerprint": {"$ref": "#/definitions/_fingerprint"}}
+    },
+    "api.network_failed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream", "description": "Browser fetch rejected without accessible HTTP response. Cannot reliably distinguish CORS from network failure.",
+      "required": ["method", "route", "operation", "failureKind"],
+      "properties": {"method": {"$ref": "#/definitions/_method"}, "route": {"$ref": "#/definitions/_route"}, "operation": {"$ref": "#/definitions/_operation"}, "failureKind": {"const": "network_or_cors", "description": "Conservative classification without claiming unobservable cause."}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "api.response_decode_failed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream", "description": "Successful HTTP response could not be parsed as JSON. Excludes deliberate fallback for non-JSON HTTP error bodies.",
+      "required": ["method", "route", "httpStatus", "operation"],
+      "properties": {"method": {"$ref": "#/definitions/_method"}, "route": {"$ref": "#/definitions/_route"}, "httpStatus": {"type": "integer", "minimum": 200, "maximum": 299, "description": "Observed successful response status whose body decoding failed."}, "operation": {"$ref": "#/definitions/_operation"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "ui.operation_failed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream", "description": "Handled error shown by UI for an operation, excluding known successful write followed by refresh failure. This is an exposure metric, not another business rejection.",
+      "required": ["operation", "errorKind"],
+      "properties": {"operation": {"$ref": "#/definitions/_operation"}, "errorKind": {"enum": ["http", "network_or_cors", "decode", "unknown"], "description": "Mapped cause, never the UI message."}, "httpStatus": {"$ref": "#/definitions/_httpStatus"}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}}
+    },
+    "ui.post_write_refresh_failed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream", "description": "Write already confirmed; subsequent data refresh failed. Correlate attempt, not a fictitious failed write. requestId is the failed refresh request if known, otherwise null.",
+      "required": ["operation", "formAttemptId", "writeConfirmed", "refreshStage"],
+      "properties": {"operation": {"enum": ["incident_create", "incident_update", "article_create", "local_create", "movement_create"], "description": "Write known to have succeeded before refresh."}, "formAttemptId": {"$ref": "#/definitions/_formAttemptId"}, "writeConfirmed": {"const": true, "description": "Do not emit this when success was never confirmed."}, "refreshStage": {"enum": ["incident_list", "incident_summary", "incident_detail", "catalogs", "movements", "stock"], "description": "Known failed read phase; no response body."}, "httpStatus": {"$ref": "#/definitions/_httpStatus"}}
+    },
+    "api.unhandled_exception": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream", "description": "Unhandled server exception at call_next, distinct from controlled business 4xx responses.",
+      "required": ["method", "route", "httpStatus", "errorFamily", "releaseVersion"],
+      "properties": {"method": {"$ref": "#/definitions/_method"}, "route": {"$ref": "#/definitions/_route"}, "httpStatus": {"const": 500, "description": "Server failure status used by middleware."}, "errorFamily": {"$ref": "#/definitions/_errorFamily"}, "releaseVersion": {"$ref": "#/definitions/_release"}, "errorFingerprint": {"$ref": "#/definitions/_fingerprint"}}
+    },
+    "operations.health_check_completed": {
+      "type": "object", "additionalProperties": false, "x-delivery": "stream", "description": "Actual health-check attempt. API can observe only received requests; external probe needed for timeout or absent response. Does not check persistence or external providers.",
+      "required": ["route", "durationMs", "outcome"],
+      "properties": {"route": {"const": "/health", "description": "Fixed process health endpoint."}, "durationMs": {"$ref": "#/definitions/_durationMs"}, "outcome": {"enum": ["success", "http_error", "network_error", "timeout"], "description": "Observed probe result, not an assumed service-wide diagnosis."}, "httpStatus": {"$ref": "#/definitions/_httpStatus"}},
+      "allOf": [
+        {"if": {"properties": {"outcome": {"enum": ["success", "http_error"]}}}, "then": {"required": ["httpStatus"]}, "else": {"not": {"required": ["httpStatus"]}}},
+        {"if": {"properties": {"outcome": {"const": "success"}}}, "then": {"properties": {"httpStatus": {"minimum": 200, "maximum": 299}}}},
+        {"if": {"properties": {"outcome": {"const": "http_error"}}}, "then": {"properties": {"httpStatus": {"minimum": 300}}}}
+      ]
+    }
+  }
+}
