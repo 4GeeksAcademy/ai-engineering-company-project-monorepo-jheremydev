@@ -37,16 +37,40 @@ def _resolved_period(start: datetime | None, end: datetime | None) -> tuple[date
     return period_start, period_end
 
 
+STALE_AFTER_DAYS = 8  # weekly cadence + 1 day of tolerance
+
+
+def _is_stale(completed: dict[str, Any] | None, now: datetime | None = None) -> bool:
+    """True when no run ever completed or the last completed run is older than 8 days.
+
+    Distinguishes "the pipeline went silent" from "there was genuinely no activity".
+    """
+    if not completed or not completed.get("finished_at"):
+        return True
+    try:
+        finished = datetime.fromisoformat(str(completed["finished_at"]).replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    if finished.tzinfo is None:
+        finished = finished.replace(tzinfo=timezone.utc)
+    return (now or datetime.now(timezone.utc)) - finished > timedelta(days=STALE_AFTER_DAYS)
+
+
 @router.get("/status")
 def reporting_status() -> dict[str, Any]:
     try:
         run = storage.latest_run()
+        completed = storage.latest_completed_run()
     except storage.ReportingStorageError as exc:
         logger.error("reporting status query failed reason=%s", exc)
         raise HTTPException(status_code=503, detail="Reporting status unavailable") from exc
+    stale = _is_stale(completed)
+    last_success = completed["finished_at"] if completed else None
     if run is None:
-        return {"status": "NotStarted", "run": None}
-    return {"status": run["status"], "run": run}
+        return {"status": "NotStarted", "run": None, "stale": True,
+                "stale_after_days": STALE_AFTER_DAYS, "last_successful_run_at": None}
+    return {"status": run["status"], "run": run, "stale": stale,
+            "stale_after_days": STALE_AFTER_DAYS, "last_successful_run_at": last_success}
 
 
 @router.post("/runs", status_code=202)

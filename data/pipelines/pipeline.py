@@ -2,6 +2,16 @@
 
 Run manually with ``python data/pipelines/pipeline.py``. The approved business
 cadence is every Monday at 07:00 (timezone confirmation remains operationally pending).
+
+Structure (Part 3): the main flow ``weekly_sales_summary_flow`` only records the run
+and calls three subflows in sequence, each with explicit inputs/outputs:
+
+    extract_inventory_movement_activity_flow  -> validated telemetry events
+    transform_weekly_inventory_activity_flow  -> weekly summary rows
+    load_weekly_sales_summary_flow            -> rows upserted
+
+``export_eval_snapshot_flow`` is optional and runs with ``return_state=True`` so its
+failure never stops the load. Pure KPI logic lives in ``data/process/weekly_activity.py``.
 """
 
 from __future__ import annotations
@@ -9,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -17,8 +28,15 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
-from prefect import flow, get_run_logger, task
-from prefect.tasks import task_input_hash
+# Allow ``python data/pipelines/pipeline.py`` to import the ``data`` package from the repo root.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from prefect import flow, get_run_logger, task  # noqa: E402
+from prefect.tasks import task_input_hash  # noqa: E402
+
+from data.process import weekly_activity  # noqa: E402
 
 logger = logging.getLogger("prefect.pipeline")
 FLOW_NAME = "weekly_sales_summary_flow"
@@ -110,65 +128,30 @@ def extract_telemetry_control_task(period_start: datetime, period_end: datetime)
 
 @task
 def validate_and_deduplicate_task(extracted: dict[str, Any]) -> dict[str, Any]:
-    unique: dict[str, dict[str, Any]] = {}
-    invalid = 0
-    for row in extracted["rows"]:
-        event_id = row.get("eventId")
-        timestamp = row.get("timestamp")
-        if not isinstance(event_id, str) or not event_id or not isinstance(timestamp, str):
-            invalid += 1
-            continue
-        unique.setdefault(event_id, row)
-    return {
-        "rows": list(unique.values()),
-        "source_records_read": extracted["source_records_read"],
-        "unique_records_processed": len(unique),
-        "duplicate_records_skipped": extracted["source_records_read"] - invalid - len(unique),
-        "invalid_records_rejected": invalid,
-    }
+    """Reject malformed events (never raises) and keep one event per eventId."""
+    return weekly_activity.validate_and_deduplicate_events(extracted.get("rows"))
+
+
+@task
+def assign_iso_week_task(validated: dict[str, Any]) -> list[dict[str, Any]]:
+    """Assign each unique movement to its ISO week (Monday), market and local."""
+    return weekly_activity.assign_iso_week(validated["rows"])
+
+
+@task
+def count_weekly_movements_task(assigned: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """KPI: unique inventory movements per ISO week, market and local."""
+    return weekly_activity.count_weekly_movements(assigned)
 
 
 @task(cache_key_fn=task_input_hash, cache_expiration=timedelta(minutes=15))
-def transform_weekly_activity_task(validated: dict[str, Any], period_start: datetime,
-                                   period_end: datetime, run_id: str) -> list[dict[str, Any]]:
-    """Cache key hashes task parameters (validated source + range + run id); cache lasts 15 minutes."""
-    groups: dict[tuple[date, str, str], dict[str, Any]] = {}
-    for row in validated["rows"]:
-        stamp = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00")).astimezone(timezone.utc)
-        iso_year, iso_week, _ = stamp.isocalendar()
-        week_monday = date.fromisocalendar(iso_year, iso_week, 1)
-        tags = row.get("tags") if isinstance(row.get("tags"), dict) else {}
-        market = tags.get("market") if isinstance(tags.get("market"), str) else "unknown"
-        local_id = tags.get("localId") if isinstance(tags.get("localId"), str) else "unknown"
-        key = (week_monday, market, local_id)
-        groups.setdefault(key, {"week_start": week_monday, "market": market, "local_id": local_id, "count": 0})
-        groups[key]["count"] += 1
-
-    now = datetime.now(timezone.utc).isoformat()
-    latest = max((row["timestamp"] for row in validated["rows"]), default=None)
-    output = []
-    for (week_monday, market, local_id), group in sorted(groups.items()):
-        # week_end is the inclusive Sunday for the ISO week.
-        output.append({
-            "week_start": week_monday.isoformat(),
-            "week_end": (week_monday + timedelta(days=6)).isoformat(),
-            "market": market,
-            "local_id": local_id,
-            "currency": "N/A",
-            "sales_total_amount": None,
-            # The field is required by the approved destination schema; quality status marks this
-            # explicitly as an operational event count, never as POS ticket sales.
-            "ticket_count": group["count"],
-            "average_ticket_amount": None,
-            "source_watermark": latest,
-            "source_record_count": group["count"],
-            "duplicate_record_count": validated["duplicate_records_skipped"],
-            "last_refreshed_at": now,
-            "run_id": run_id,
-            "data_quality_status": "pending_pos_integration",
-        })
-    # Empty weeks are deliberately not published as zero activity without POS coverage.
-    return output
+def build_weekly_summary_rows_task(counts: list[dict[str, Any]], run_id: str,
+                                   duplicate_records_skipped: int,
+                                   source_watermark: str | None) -> list[dict[str, Any]]:
+    """Shape KPI counts as destination rows. Cache key hashes the parameters; lasts 15 minutes."""
+    return weekly_activity.build_weekly_summary_rows(
+        counts, run_id=run_id, now=datetime.now(timezone.utc),
+        duplicate_records_skipped=duplicate_records_skipped, source_watermark=source_watermark)
 
 
 @task(retries=3, retry_delay_seconds=5)
@@ -213,6 +196,35 @@ def export_eval_snapshot_task(rows: list[dict[str, Any]], run_id: str) -> str:
     return str(target)
 
 
+@flow(name="extract_inventory_movement_activity_flow")
+def extract_inventory_movement_activity_flow(period_start: datetime, period_end: datetime) -> dict[str, Any]:
+    """Read telemetry_events (read-only) and return validated, deduplicated events + counters."""
+    extracted = extract_telemetry_control_task(period_start, period_end)
+    return validate_and_deduplicate_task(extracted)
+
+
+@flow(name="transform_weekly_inventory_activity_flow")
+def transform_weekly_inventory_activity_flow(validated: dict[str, Any], run_id: str) -> list[dict[str, Any]]:
+    """Validated events -> weekly summary rows (ISO week, market, local)."""
+    assigned = assign_iso_week_task(validated)
+    counts = count_weekly_movements_task(assigned)
+    watermark = max((row["timestamp"] for row in validated["rows"]), default=None)
+    return build_weekly_summary_rows_task(
+        counts, run_id, validated["duplicate_records_skipped"], watermark)
+
+
+@flow(name="load_weekly_sales_summary_flow")
+def load_weekly_sales_summary_flow(rows: list[dict[str, Any]]) -> int:
+    """Idempotent upsert into reporting.weekly_sales_summary; returns rows written."""
+    return load_reporting_summary_task(rows)
+
+
+@flow(name="export_eval_snapshot_flow")
+def export_eval_snapshot_flow(rows: list[dict[str, Any]], run_id: str) -> str:
+    """Optional: JSON snapshot under data/eval/. Invoked with return_state=True."""
+    return export_eval_snapshot_task(rows, run_id)
+
+
 def _default_period() -> tuple[datetime, datetime]:
     today = datetime.now(timezone.utc).date()
     this_monday = today - timedelta(days=today.weekday())
@@ -253,21 +265,20 @@ def weekly_sales_summary_flow(period_start: datetime | None = None,
     }, reporting=True, prefer="return=minimal")
 
     try:
-        extracted = extract_telemetry_control_task(period_start, period_end)
-        validated = validate_and_deduplicate_task(extracted)
+        validated = extract_inventory_movement_activity_flow(period_start, period_end)
         counters.update({key: validated[key] for key in (
             "source_records_read", "unique_records_processed", "duplicate_records_skipped")})
         watermark = max((row["timestamp"] for row in validated["rows"]), default=None)
-        aggregates = transform_weekly_activity_task(validated, period_start, period_end, run_id)
+        aggregates = transform_weekly_inventory_activity_flow(validated, run_id)
         try:
-            snapshot_state = export_eval_snapshot_task(aggregates, run_id, return_state=True)
+            snapshot_state = export_eval_snapshot_flow(aggregates, run_id, return_state=True)
             if snapshot_state.is_failed():
                 run_logger.warning("Optional eval snapshot failed; loading report continues")
             else:
                 run_logger.info("Optional snapshot saved: %s", snapshot_state.result())
         except Exception:
             run_logger.exception("Optional eval snapshot raised; loading report continues")
-        counters["destination_rows_upserted"] = load_reporting_summary_task(aggregates)
+        counters["destination_rows_upserted"] = load_weekly_sales_summary_flow(aggregates)
         status = "Completed"
         return {"run_id": run_id, "status": status, **counters, "aggregates": aggregates}
     except Exception as exc:

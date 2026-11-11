@@ -47,3 +47,12 @@ def latest_run() -> dict[str, Any] | None:
 def weekly_summaries(filters: list[tuple[str, str]]) -> list[dict[str, Any]]:
     select = ("select", "week_start,week_end,market,local_id,currency,sales_total_amount,ticket_count,average_ticket_amount,source_watermark,source_record_count,duplicate_record_count,last_refreshed_at,run_id,data_quality_status")
     return _read("weekly_sales_summary", [select, ("order", "week_start.desc,market.asc,local_id.asc"), *filters])
+
+
+def latest_completed_run() -> dict[str, Any] | None:
+    """Most recent run that finished successfully (basis of the staleness check)."""
+    rows = _read("pipeline_run_log", [
+        ("select", "run_id,finished_at,status"),
+        ("status", "eq.Completed"), ("order", "finished_at.desc"), ("limit", "1"),
+    ])
+    return rows[0] if rows else None

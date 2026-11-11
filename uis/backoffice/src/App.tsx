@@ -8,9 +8,10 @@ import { trackedLazyImport, trackOperationFailed } from './services/telemetryErr
 import { areas, channels, incidentTypes, severities, statuses, type Area, type Incident, type IncidentFilters, type IncidentType, type NewIncident, type Severity } from '@repo/shared-types'
 
 const InventoryManager = lazy(trackedLazyImport('inventory', () => import('./InventoryManager')))
+const ReportingDashboard = lazy(() => import('./components/ReportingDashboard'))
 const IncidentDetailView = lazy(trackedLazyImport('incident_detail', () => import('./components/IncidentDetailView')))
 
-type View = 'incidents' | 'inventory'
+type View = 'incidents' | 'inventory' | 'reporting'
 type DetailTrigger = 'table_click' | 'table_enter' | 'after_create'
 
 function activeFilters(filters: IncidentFilters): IncidentFilters {
@@ -75,7 +76,8 @@ function App() {
   const changeView = (view: View) => {
     if (view === activeView) return
     setActiveView(view)
-    track('navigation.section_viewed', { view, trigger: 'tab_change' })
+    // The telemetry schema only allows 'incidents' | 'inventory' views; reporting is not tracked.
+    if (view !== 'reporting') track('navigation.section_viewed', { view, trigger: 'tab_change' })
   }
 
   const openDetail = (id: string, trigger: DetailTrigger) => {
@@ -114,7 +116,7 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div><p className="eyebrow">Brasaland Digital / Operaciones</p><h1>{activeView === 'inventory' ? 'Gestor de inventario' : 'Centro de incidencias'}</h1></div>
+        <div><p className="eyebrow">Brasaland Digital / Operaciones</p><h1>{activeView === 'inventory' ? 'Gestor de inventario' : activeView === 'reporting' ? 'Resumen ejecutivo de Brasaland' : 'Centro de incidencias'}</h1></div>
         <div className="live-status"><span /> API conectada por configuración</div>
       </header>
       <nav className="domain-tabs" role="tablist" aria-label="Módulos operativos">
@@ -136,8 +138,21 @@ function App() {
         >
           Inventario
         </button>
+        <button
+          className={`domain-tab ${activeView === 'reporting' ? 'is-active' : ''}`}
+          type="button"
+          role="tab"
+          aria-selected={activeView === 'reporting'}
+          onClick={() => changeView('reporting')}
+        >
+          Reporting
+        </button>
       </nav>
-      {activeView === 'inventory' ? (
+      {activeView === 'reporting' ? (
+        <Suspense fallback={<p className="empty-state">Cargando resumen ejecutivo...</p>}>
+          <ReportingDashboard />
+        </Suspense>
+      ) : activeView === 'inventory' ? (
         <Suspense fallback={<p className="empty-state">Cargando inventario...</p>}>
           <InventoryManager />
         </Suspense>

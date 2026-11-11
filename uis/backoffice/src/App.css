@@ -66,3 +66,16 @@ h2 { margin: .35rem 0 0; font-size: 1.35rem; font-weight: 700; letter-spacing: -
 .inventory-movement-table { min-width: 850px; }
 @media (max-width: 1000px) { .inventory-workspace { grid-template-columns: 1fr; } }
 @media (max-width: 620px) { .domain-tabs { margin-bottom: 1.25rem; }.domain-tab { flex: 1; }.inventory-stock-form { grid-template-columns: 1fr; padding-inline: 1rem; }.inventory-stock-form .primary-button { grid-column: auto; }.inventory-stock-result { margin-inline: 1rem; } }
+
+/* Resumen ejecutivo (reporting) */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; margin: 1.5rem 0; }
+.kpi-card { padding: 1.5rem; display: flex; flex-direction: column; gap: .5rem; }
+.kpi-card strong { color: var(--ink); font-family: Georgia, serif; font-size: 3rem; font-weight: 500; line-height: 1; }
+.kpi-card p { margin: 0; color: var(--muted); font-size: .85rem; }
+.kpi-card .kpi-pending { color: var(--terracotta); font-size: 2rem; }
+.kpi-period { font-family: 'DM Mono', monospace; font-size: .72rem !important; }
+.week-block { padding: 0 1.5rem 1.5rem; }
+.week-block h3 { margin: 1rem 0 .5rem; font-size: 1rem; }
+.week-block h3 span { color: var(--muted); font-weight: 400; font-size: .85rem; }
+.bar-cell { width: 40%; }
+.bar-cell i { display: block; height: .6rem; background: var(--teal); }

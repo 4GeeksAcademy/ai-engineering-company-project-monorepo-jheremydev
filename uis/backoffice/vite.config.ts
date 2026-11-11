@@ -29,6 +29,10 @@ export default defineConfig({
         target: process.env.API_PROXY_TARGET,
         changeOrigin: true,
       },
+      '/reporting': {
+        target: process.env.API_PROXY_TARGET,
+        changeOrigin: true,
+      },
     },
   },
 })

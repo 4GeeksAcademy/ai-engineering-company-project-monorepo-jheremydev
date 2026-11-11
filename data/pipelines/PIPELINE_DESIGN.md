@@ -253,3 +253,25 @@ La lógica de extracción, transformación, deduplicación, carga, retries y sch
 ## Conclusión
 
 El KPI real de negocio documentado es el total semanal de ventas de la cadena en USD y COP, y la cadencia indicada es cada lunes a las 07:00. El monorepo todavía no contiene una fuente POS integrada ni el nombre contractual de tabla destino; por ello, este documento diseña el flujo sin presentar las propuestas como hechos ni habilitar cifras no verificables.
+
+## Mejoras implementadas en la Parte 3
+
+### Refactor en subflows (Prefect)
+
+`weekly_sales_summary_flow` solo registra la corrida en `reporting.pipeline_run_log` y llama, en secuencia, a subflows con entradas y salidas explícitas (sin variables globales):
+
+| Subflow | Entrada | Salida |
+|---|---|---|
+| `extract_inventory_movement_activity_flow` | `period_start`, `period_end` | eventos `inventory.movement_created` validados y deduplicados por `eventId` + contadores |
+| `transform_weekly_inventory_activity_flow` | eventos validados, `run_id` | filas del resumen semanal (semana ISO, mercado, local) |
+| `load_weekly_sales_summary_flow` | filas del resumen | número de filas escritas (upsert por clave natural) |
+| `export_eval_snapshot_flow` (opcional) | filas, `run_id` | ruta del snapshot en `data/eval/`; se invoca con `return_state=True`: si falla, se registra y la carga continúa |
+
+La lógica de KPI es pura y vive en `data/process/weekly_activity.py`; las tasks (`validate_and_deduplicate_task`, `assign_iso_week_task`, `count_weekly_movements_task`, `build_weekly_summary_rows_task`) son envoltorios finos, probados en `tests/pipelines/test_pipeline.py`. Los eventos con `eventId` nulo, tipo incorrecto o `timestamp` inválido se cuentan en `invalid_records_rejected` y nunca detienen la corrida.
+
+### Mejora de observabilidad: detección de datos desactualizados (`stale`)
+
+- **Pregunta de diseño que responde:** *Silencio vs. ausencia real* (sección Preguntas de Diseño). Distingue "el pipeline dejó de ejecutarse" de "no hubo actividad".
+- **Qué se implementó:** `GET /reporting/status` devuelve ahora `stale`, `stale_after_days` (8) y `last_successful_run_at`. `stale` es `true` si no existe ninguna corrida `Completed` o la última terminó hace más de 8 días (cadencia semanal + 1 día de tolerancia). El dashboard del backoffice muestra el aviso "Datos desactualizados" en ese caso.
+- **Por qué se priorizó:** el pipeline corre solo cada lunes; sin esta señal, un fallo silencioso haría que la Dirección Ejecutiva leyera cifras viejas como si fueran actuales. Es barata (usa solo `pipeline_run_log`, sin cambios de esquema) y no inventa cobertura POS que todavía no existe.
+- **Fuera de alcance (pendiente):** cobertura por local/período del POS y alerta activa (notificación) cuando `stale` pasa a `true`.
